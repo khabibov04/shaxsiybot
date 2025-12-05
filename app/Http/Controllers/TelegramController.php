@@ -27,7 +27,7 @@ class TelegramController extends Controller
         $update = $request->all();
 
         // Log incoming request
-        Log::channel('telegram')->info('Webhook received', [
+        $this->logTelegram('info', 'Webhook received', [
             'update_id' => $update['update_id'] ?? null,
             'message_id' => $update['message']['message_id'] ?? $update['callback_query']['message']['message_id'] ?? null,
             'chat_id' => $update['message']['chat']['id'] ?? $update['callback_query']['message']['chat']['id'] ?? null,
@@ -38,12 +38,12 @@ class TelegramController extends Controller
         try {
             $this->handler->handle($update);
             
-            Log::channel('telegram')->info('Webhook processed successfully', [
+            $this->logTelegram('info', 'Webhook processed successfully', [
                 'update_id' => $update['update_id'] ?? null,
             ]);
         } catch (\Throwable $e) {
             // Log detailed error
-            Log::channel('telegram')->error('Webhook processing failed', [
+            $this->logTelegram('error', 'Webhook processing failed', [
                 'error' => $e->getMessage(),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
@@ -51,16 +51,29 @@ class TelegramController extends Controller
                 'update' => $update,
             ]);
 
-            // Also log to default channel
-            Log::error('Telegram webhook error: ' . $e->getMessage(), [
-                'exception' => $e,
-            ]);
-
             // Notify admin if configured
             $this->notifyAdminOnError($e, $update);
         }
 
         return response()->json(['ok' => true]);
+    }
+
+    /**
+     * Log to telegram channel or fallback to default
+     */
+    protected function logTelegram(string $level, string $message, array $context = []): void
+    {
+        try {
+            // Try telegram channel first
+            if (config('logging.channels.telegram')) {
+                Log::channel('telegram')->{$level}($message, $context);
+            } else {
+                Log::{$level}("[TELEGRAM] {$message}", $context);
+            }
+        } catch (\Exception $e) {
+            // Fallback to default channel
+            Log::{$level}("[TELEGRAM] {$message}", $context);
+        }
     }
 
     /**
@@ -87,7 +100,7 @@ class TelegramController extends Controller
                 }
             }
         } catch (\Exception $notifyError) {
-            Log::channel('telegram')->warning('Failed to notify admin', [
+            $this->logTelegram('warning', 'Failed to notify admin', [
                 'error' => $notifyError->getMessage(),
             ]);
         }
@@ -108,6 +121,8 @@ class TelegramController extends Controller
         }
 
         $result = $this->bot->setWebhook($url);
+        
+        $this->logTelegram('info', 'Webhook set', ['url' => $url, 'result' => $result]);
 
         return response()->json($result);
     }
@@ -118,6 +133,8 @@ class TelegramController extends Controller
     public function deleteWebhook(): JsonResponse
     {
         $result = $this->bot->deleteWebhook();
+        
+        $this->logTelegram('info', 'Webhook deleted', ['result' => $result]);
 
         return response()->json($result);
     }
@@ -137,6 +154,8 @@ class TelegramController extends Controller
      */
     public function health(): JsonResponse
     {
+        $this->logTelegram('info', 'Health check accessed');
+        
         return response()->json([
             'status' => 'ok',
             'timestamp' => now()->toIso8601String(),
@@ -144,4 +163,3 @@ class TelegramController extends Controller
         ]);
     }
 }
-
