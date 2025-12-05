@@ -265,10 +265,13 @@ class CalendarHandler
         $message .= "💸 Xarajat: " . number_format($totalExpense, 0, '.', ' ') . "\n";
         $message .= "📊 Farq: " . number_format($totalIncome - $totalExpense, 0, '.', ' ');
 
+        $prevYear = $year - 1;
+        $nextYear = $year + 1;
+        
         $keyboard = [
             [
-                ['text' => "◀️ {$year - 1}", 'callback_data' => "cal_nav:year_{$year - 1}"],
-                ['text' => "{$year + 1} ▶️", 'callback_data' => "cal_nav:year_{$year + 1}"],
+                ['text' => "◀️ {$prevYear}", 'callback_data' => "cal_nav:year_{$prevYear}"],
+                ['text' => "{$nextYear} ▶️", 'callback_data' => "cal_nav:year_{$nextYear}"],
             ],
         ];
 
