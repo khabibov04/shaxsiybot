@@ -240,10 +240,11 @@ class MessageHandler
             'task_view' => $this->taskHandler->viewTask($user, $value, $messageId),
             'task_edit' => $this->taskHandler->editTask($user, $value, $messageId),
             'task_delete' => $this->taskHandler->deleteTask($user, $value, $messageId),
-            'task_rate' => $this->taskHandler->rateTask($user, $value, $messageId),
+            'task_confirm_delete' => $this->taskHandler->confirmDeleteTask($user, $value, $messageId),
             'task_priority' => $this->taskHandler->setTaskPriority($user, $value, $messageId),
-            'task_category' => $this->taskHandler->setTaskCategory($user, $value, $messageId),
-            'task_confirm' => $this->taskHandler->confirmTask($user, $value, $messageId),
+            'task_date' => $this->taskHandler->setTaskDate($user, $value, $messageId),
+            'quick_add_task' => $this->taskHandler->startAddTask($user),
+            'view_today_tasks' => $this->taskHandler->showTodayTasks($user),
 
             // Moliya callback'lari
             'tx_category' => $this->financeHandler->setCategory($user, $value, $messageId),

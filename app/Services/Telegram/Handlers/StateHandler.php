@@ -86,66 +86,8 @@ class StateHandler
 
     protected function handleTaskState(TelegramUser $user, string $text, array $data): void
     {
-        $step = $data['step'] ?? 'title';
-
-        switch ($step) {
-            case 'title':
-                // Extract tags from text
-                preg_match_all('/#(\w+)/u', $text, $matches);
-                $tags = $matches[1] ?? [];
-                $title = trim(preg_replace('/#\w+/u', '', $text));
-
-                if (empty($title)) {
-                    $this->bot->sendMessage($user->telegram_id, "❌ Vazifa nomi bo'sh bo'lishi mumkin emas.");
-                    return;
-                }
-
-                $data['title'] = $title;
-                $data['tags'] = $tags;
-                $data['step'] = 'priority';
-                $user->setState('adding_task', $data);
-
-                $keyboard = $this->bot->buildPriorityInlineKeyboard('task_priority');
-                $this->bot->sendMessageWithInlineKeyboard(
-                    $user->telegram_id,
-                    "🎯 <b>Muhimlik darajasini tanlang:</b>",
-                    $keyboard
-                );
-                break;
-
-            case 'description':
-                $data['description'] = $text;
-                $data['step'] = 'time';
-                $user->setState('adding_task', $data);
-
-                $this->bot->sendMessage(
-                    $user->telegram_id,
-                    "⏰ <b>Vaqtni kiriting</b> (ixtiyoriy)\n\n" .
-                    "Format: <code>HH:MM</code>\n" .
-                    "Misol: <code>14:30</code>\n\n" .
-                    "O'tkazib yuborish uchun /skip yozing"
-                );
-                break;
-
-            case 'time':
-                if ($text !== '/skip') {
-                    if (preg_match('/^(\d{1,2}):(\d{2})$/', $text, $matches)) {
-                        $data['time'] = sprintf('%02d:%02d:00', $matches[1], $matches[2]);
-                    } else {
-                        $this->bot->sendMessage(
-                            $user->telegram_id,
-                            "❌ Noto'g'ri format. HH:MM formatida kiriting (masalan, 14:30)"
-                        );
-                        return;
-                    }
-                }
-
-                $data['step'] = 'confirm';
-                $user->setState('adding_task', $data);
-
-                $this->showTaskConfirmation($user, $data);
-                break;
-        }
+        // Tezkor vazifa qo'shish - kategoriya avtomatik aniqlanadi
+        $this->taskHandler->quickAddTask($user, $text);
     }
 
     protected function handleEditTaskState(TelegramUser $user, string $text, array $data): void
