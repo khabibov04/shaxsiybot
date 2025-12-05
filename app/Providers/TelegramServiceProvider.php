@@ -56,8 +56,8 @@ class TelegramServiceProvider extends ServiceProvider
                 $app->make(TaskHandler::class),
                 $app->make(FinanceHandler::class),
                 $app->make(DebtHandler::class),
-                $app->make(SettingsHandler::class),
-                $app->make(AIHandler::class)
+                $app->make(CalendarHandler::class),
+                $app->make(SettingsHandler::class)
             );
         });
 
