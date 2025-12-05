@@ -117,6 +117,18 @@ class MessageHandler
             return;
         }
 
+        // Asosiy menyu tugmalari - state ni tozalaydi
+        $mainMenuButtons = [
+            '📋 Vazifalar', '💰 Moliya', '📅 Taqvim', '💳 Qarzlar',
+            '📊 Statistika', '🤖 AI Yordamchi', '⚙️ Sozlamalar', '🔙 Orqaga'
+        ];
+
+        if (in_array($text, $mainMenuButtons)) {
+            $user->clearState();
+            $this->handleMenuButton($user, $text);
+            return;
+        }
+
         // Foydalanuvchi holatini qayta ishlash
         if ($user->current_state) {
             $this->stateHandler->handle($user, $text, $message);
