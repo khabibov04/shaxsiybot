@@ -127,6 +127,15 @@ return [
             'path' => storage_path('logs/laravel.log'),
         ],
 
+        // Telegram Bot dedicated log channel
+        'telegram' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/telegram.log'),
+            'level' => env('TELEGRAM_LOG_LEVEL', 'debug'),
+            'days' => 30,
+            'replace_placeholders' => true,
+        ],
+
     ],
 
 ];

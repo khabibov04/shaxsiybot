@@ -26,18 +26,71 @@ class TelegramController extends Controller
     {
         $update = $request->all();
 
-        Log::info('Telegram webhook received', ['update' => $update]);
+        // Log incoming request
+        Log::channel('telegram')->info('Webhook received', [
+            'update_id' => $update['update_id'] ?? null,
+            'message_id' => $update['message']['message_id'] ?? $update['callback_query']['message']['message_id'] ?? null,
+            'chat_id' => $update['message']['chat']['id'] ?? $update['callback_query']['message']['chat']['id'] ?? null,
+            'from_id' => $update['message']['from']['id'] ?? $update['callback_query']['from']['id'] ?? null,
+            'text' => $update['message']['text'] ?? $update['callback_query']['data'] ?? null,
+        ]);
 
         try {
             $this->handler->handle($update);
-        } catch (\Exception $e) {
-            Log::error('Telegram webhook error', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
+            
+            Log::channel('telegram')->info('Webhook processed successfully', [
+                'update_id' => $update['update_id'] ?? null,
             ]);
+        } catch (\Throwable $e) {
+            // Log detailed error
+            Log::channel('telegram')->error('Webhook processing failed', [
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+                'update' => $update,
+            ]);
+
+            // Also log to default channel
+            Log::error('Telegram webhook error: ' . $e->getMessage(), [
+                'exception' => $e,
+            ]);
+
+            // Notify admin if configured
+            $this->notifyAdminOnError($e, $update);
         }
 
         return response()->json(['ok' => true]);
+    }
+
+    /**
+     * Notify admin about errors
+     */
+    protected function notifyAdminOnError(\Throwable $e, array $update): void
+    {
+        try {
+            $adminIds = config('telegram.admin_ids', []);
+            
+            if (empty($adminIds)) {
+                return;
+            }
+
+            $errorMessage = "🚨 <b>Bot Error!</b>\n\n" .
+                "📍 <b>Error:</b> " . htmlspecialchars($e->getMessage()) . "\n" .
+                "📁 <b>File:</b> " . basename($e->getFile()) . ":" . $e->getLine() . "\n" .
+                "🕐 <b>Time:</b> " . now()->format('Y-m-d H:i:s') . "\n\n" .
+                "📨 <b>Update ID:</b> " . ($update['update_id'] ?? 'N/A');
+
+            foreach ($adminIds as $adminId) {
+                if (!empty($adminId)) {
+                    $this->bot->sendMessage((int)$adminId, $errorMessage);
+                }
+            }
+        } catch (\Exception $notifyError) {
+            Log::channel('telegram')->warning('Failed to notify admin', [
+                'error' => $notifyError->getMessage(),
+            ]);
+        }
     }
 
     /**

@@ -51,11 +51,44 @@ class MessageHandler
             } elseif (isset($update['callback_query'])) {
                 $this->handleCallbackQuery($update['callback_query']);
             }
-        } catch (\Exception $e) {
-            Log::error('Message handler error', [
-                'update' => $update,
+        } catch (\Throwable $e) {
+            // Log to telegram channel
+            Log::channel('telegram')->error('Message handler error', [
                 'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
                 'trace' => $e->getTraceAsString(),
+                'update' => $update,
+            ]);
+
+            // Try to notify user about error
+            $this->notifyUserAboutError($update);
+
+            // Re-throw for controller to handle
+            throw $e;
+        }
+    }
+
+    /**
+     * Notify user that an error occurred
+     */
+    protected function notifyUserAboutError(array $update): void
+    {
+        try {
+            $chatId = $update['message']['chat']['id'] 
+                ?? $update['callback_query']['message']['chat']['id'] 
+                ?? null;
+
+            if ($chatId) {
+                $this->bot->sendMessage(
+                    $chatId,
+                    "⚠️ Xatolik yuz berdi. Iltimos, keyinroq qayta urinib ko'ring.\n\n" .
+                    "⚠️ An error occurred. Please try again later."
+                );
+            }
+        } catch (\Exception $e) {
+            Log::channel('telegram')->warning('Failed to notify user about error', [
+                'error' => $e->getMessage(),
             ]);
         }
     }

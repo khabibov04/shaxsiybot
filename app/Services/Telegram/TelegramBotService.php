@@ -168,21 +168,42 @@ class TelegramBotService
             $data = $response->json();
 
             if (!$response->successful() || !($data['ok'] ?? false)) {
-                Log::error("Telegram API error: {$method}", [
-                    'params' => $params,
+                Log::channel('telegram')->error("Telegram API error: {$method}", [
+                    'method' => $method,
+                    'params' => $this->sanitizeParams($params),
                     'response' => $data,
+                    'http_status' => $response->status(),
                 ]);
             }
 
-            return $data;
+            return $data ?? ['ok' => false, 'error' => 'Empty response'];
         } catch (\Exception $e) {
-            Log::error("Telegram API exception: {$method}", [
-                'params' => $params,
+            Log::channel('telegram')->error("Telegram API exception: {$method}", [
+                'method' => $method,
+                'params' => $this->sanitizeParams($params),
                 'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
             ]);
 
             return ['ok' => false, 'error' => $e->getMessage()];
         }
+    }
+
+    /**
+     * Remove sensitive data from params for logging
+     */
+    protected function sanitizeParams(array $params): array
+    {
+        // Don't log file contents
+        $sanitized = $params;
+        if (isset($sanitized['document']) && $sanitized['document'] instanceof \CURLFile) {
+            $sanitized['document'] = '[FILE]';
+        }
+        if (isset($sanitized['photo']) && $sanitized['photo'] instanceof \CURLFile) {
+            $sanitized['photo'] = '[FILE]';
+        }
+        return $sanitized;
     }
 
     // User management
