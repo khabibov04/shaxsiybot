@@ -110,7 +110,7 @@ class TelegramBotService
         return $this->request('sendPhoto', $params);
     }
 
-    public function sendDocument(int $chatId, string $document, string $caption = ''): array
+    public function sendDocument(int $chatId, $document, string $caption = ''): array
     {
         return $this->request('sendDocument', [
             'chat_id' => $chatId,
@@ -168,7 +168,7 @@ class TelegramBotService
             $data = $response->json();
 
             if (!$response->successful() || !($data['ok'] ?? false)) {
-                Log::channel('telegram')->error("Telegram API error: {$method}", [
+                Log::error("Telegram API xatolik: {$method}", [
                     'method' => $method,
                     'params' => $this->sanitizeParams($params),
                     'response' => $data,
@@ -176,9 +176,9 @@ class TelegramBotService
                 ]);
             }
 
-            return $data ?? ['ok' => false, 'error' => 'Empty response'];
+            return $data ?? ['ok' => false, 'error' => 'Bo\'sh javob'];
         } catch (\Exception $e) {
-            Log::channel('telegram')->error("Telegram API exception: {$method}", [
+            Log::error("Telegram API istisno: {$method}", [
                 'method' => $method,
                 'params' => $this->sanitizeParams($params),
                 'error' => $e->getMessage(),
@@ -190,23 +190,19 @@ class TelegramBotService
         }
     }
 
-    /**
-     * Remove sensitive data from params for logging
-     */
     protected function sanitizeParams(array $params): array
     {
-        // Don't log file contents
         $sanitized = $params;
         if (isset($sanitized['document']) && $sanitized['document'] instanceof \CURLFile) {
-            $sanitized['document'] = '[FILE]';
+            $sanitized['document'] = '[FAYL]';
         }
         if (isset($sanitized['photo']) && $sanitized['photo'] instanceof \CURLFile) {
-            $sanitized['photo'] = '[FILE]';
+            $sanitized['photo'] = '[FAYL]';
         }
         return $sanitized;
     }
 
-    // User management
+    // Foydalanuvchi boshqaruvi
     public function getOrCreateUser(array $from): TelegramUser
     {
         return TelegramUser::updateOrCreate(
@@ -215,69 +211,69 @@ class TelegramBotService
                 'username' => $from['username'] ?? null,
                 'first_name' => $from['first_name'] ?? null,
                 'last_name' => $from['last_name'] ?? null,
-                'language_code' => $from['language_code'] ?? 'en',
+                'language_code' => $from['language_code'] ?? 'uz',
             ]
         );
     }
 
-    // Keyboard builders
+    // Klaviatura yaratuvchilar - O'ZBEK TILIDA
     public function buildMainMenuKeyboard(): array
     {
         return [
-            [['text' => '📋 Tasks'], ['text' => '💰 Finance']],
-            [['text' => '📅 Calendar'], ['text' => '💳 Debts']],
-            [['text' => '📊 Statistics'], ['text' => '🤖 AI Assistant']],
-            [['text' => '⚙️ Settings']],
+            [['text' => '📋 Vazifalar'], ['text' => '💰 Moliya']],
+            [['text' => '📅 Taqvim'], ['text' => '💳 Qarzlar']],
+            [['text' => '📊 Statistika'], ['text' => '🤖 AI Yordamchi']],
+            [['text' => '⚙️ Sozlamalar']],
         ];
     }
 
     public function buildTasksKeyboard(): array
     {
         return [
-            [['text' => '➕ Add Task'], ['text' => '📋 Today\'s Tasks']],
-            [['text' => '📅 Week Tasks'], ['text' => '📆 Month Tasks']],
-            [['text' => '🌅 Morning Plan'], ['text' => '🌙 Evening Summary']],
-            [['text' => '🔙 Back to Menu']],
+            [['text' => '➕ Vazifa qo\'shish'], ['text' => '📋 Bugungi vazifalar']],
+            [['text' => '📅 Haftalik'], ['text' => '📆 Oylik']],
+            [['text' => '🌅 Ertalabki reja'], ['text' => '🌙 Kechki xulosa']],
+            [['text' => '🔙 Orqaga']],
         ];
     }
 
     public function buildFinanceKeyboard(): array
     {
         return [
-            [['text' => '💵 Add Income'], ['text' => '💸 Add Expense']],
-            [['text' => '📊 Today Report'], ['text' => '📈 Month Report']],
-            [['text' => '💱 Currency Rates'], ['text' => '📉 Analysis']],
-            [['text' => '🔙 Back to Menu']],
+            [['text' => '💵 Daromad qo\'shish'], ['text' => '💸 Xarajat qo\'shish']],
+            [['text' => '📊 Bugungi hisobot'], ['text' => '📈 Oylik hisobot']],
+            [['text' => '💱 Valyuta kursi'], ['text' => '📉 Tahlil']],
+            [['text' => '🔙 Orqaga']],
         ];
     }
 
     public function buildDebtsKeyboard(): array
     {
         return [
-            [['text' => '📤 I Gave Debt'], ['text' => '📥 I Received Debt']],
-            [['text' => '📋 Active Debts'], ['text' => '⏰ Due Soon']],
-            [['text' => '✅ Paid Debts'], ['text' => '📊 Debt Summary']],
-            [['text' => '🔙 Back to Menu']],
+            [['text' => '📤 Qarz berdim'], ['text' => '📥 Qarz oldim']],
+            [['text' => '📋 Faol qarzlar'], ['text' => '⏰ Muddati yaqin']],
+            [['text' => '✅ To\'langan'], ['text' => '📊 Qarz xulosasi']],
+            [['text' => '🔙 Orqaga']],
         ];
     }
 
     public function buildCalendarKeyboard(): array
     {
         return [
-            [['text' => '📅 Today'], ['text' => '📆 This Week']],
-            [['text' => '🗓️ This Month'], ['text' => '📊 This Year']],
-            [['text' => '🔍 Custom Range']],
-            [['text' => '🔙 Back to Menu']],
+            [['text' => '📅 Bugun'], ['text' => '📆 Shu hafta']],
+            [['text' => '🗓️ Shu oy'], ['text' => '📊 Shu yil']],
+            [['text' => '🔍 Maxsus oraliq']],
+            [['text' => '🔙 Orqaga']],
         ];
     }
 
     public function buildSettingsKeyboard(): array
     {
         return [
-            [['text' => '🔔 Notifications'], ['text' => '💱 Currency']],
-            [['text' => '🌐 Language'], ['text' => '⏰ Time Zone']],
-            [['text' => '📤 Export Data'], ['text' => '📥 Import Data']],
-            [['text' => '🔙 Back to Menu']],
+            [['text' => '🔔 Bildirishnomalar'], ['text' => '💱 Valyuta']],
+            [['text' => '🌐 Til'], ['text' => '⏰ Vaqt zonasi']],
+            [['text' => '📤 Eksport'], ['text' => '📥 Import']],
+            [['text' => '🔙 Orqaga']],
         ];
     }
 
@@ -285,9 +281,9 @@ class TelegramBotService
     {
         return [
             [
-                ['text' => '🔴 High', 'callback_data' => "{$prefix}:high"],
-                ['text' => '🟡 Medium', 'callback_data' => "{$prefix}:medium"],
-                ['text' => '🟢 Low', 'callback_data' => "{$prefix}:low"],
+                ['text' => '🔴 Yuqori', 'callback_data' => "{$prefix}:high"],
+                ['text' => '🟡 O\'rta', 'callback_data' => "{$prefix}:medium"],
+                ['text' => '🟢 Past', 'callback_data' => "{$prefix}:low"],
             ],
         ];
     }
@@ -317,8 +313,8 @@ class TelegramBotService
     {
         return [
             [
-                ['text' => '✅ Confirm', 'callback_data' => "{$prefix}:confirm"],
-                ['text' => '❌ Cancel', 'callback_data' => "{$prefix}:cancel"],
+                ['text' => '✅ Tasdiqlash', 'callback_data' => "{$prefix}:confirm"],
+                ['text' => '❌ Bekor qilish', 'callback_data' => "{$prefix}:cancel"],
             ],
         ];
     }
@@ -340,10 +336,9 @@ class TelegramBotService
     {
         return [
             [
-                ['text' => '✅ Yes', 'callback_data' => "{$prefix}:yes"],
-                ['text' => '❌ No', 'callback_data' => "{$prefix}:no"],
+                ['text' => '✅ Ha', 'callback_data' => "{$prefix}:yes"],
+                ['text' => '❌ Yo\'q', 'callback_data' => "{$prefix}:no"],
             ],
         ];
     }
 }
-

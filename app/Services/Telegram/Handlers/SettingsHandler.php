@@ -3,9 +3,6 @@
 namespace App\Services\Telegram\Handlers;
 
 use App\Models\TelegramUser;
-use App\Models\Task;
-use App\Models\Transaction;
-use App\Models\Debt;
 use App\Services\Telegram\TelegramBotService;
 use Illuminate\Support\Facades\Storage;
 
@@ -20,33 +17,21 @@ class SettingsHandler
 
     public function showSettings(TelegramUser $user): void
     {
-        $message = "⚙️ <b>Settings</b>\n\n";
-        
-        $message .= "<b>Current Settings:</b>\n";
-        $message .= "💱 Currency: {$user->currency}\n";
-        $message .= "🌐 Language: {$user->language_code}\n";
-        $message .= "⏰ Timezone: {$user->timezone}\n";
-        $message .= "🌅 Morning time: {$user->morning_time}\n";
-        $message .= "🌙 Evening time: {$user->evening_time}\n\n";
+        $notifStatus = $user->notifications_enabled ? '✅ Yoqilgan' : '❌ O\'chirilgan';
+        $languages = ['uz' => "🇺🇿 O'zbek", 'ru' => '🇷🇺 Русский', 'en' => '🇬🇧 English'];
+        $langLabel = $languages[$user->language] ?? "🇺🇿 O'zbek";
 
-        $message .= "<b>Notifications:</b>\n";
-        $message .= $user->morning_notifications ? "✅" : "❌";
-        $message .= " Morning reminders\n";
-        $message .= $user->evening_notifications ? "✅" : "❌";
-        $message .= " Evening summaries\n";
-        $message .= $user->debt_reminders ? "✅" : "❌";
-        $message .= " Debt reminders\n";
-        $message .= $user->budget_alerts ? "✅" : "❌";
-        $message .= " Budget alerts\n\n";
+        $message = "⚙️ <b>Sozlamalar</b>\n\n";
+        $message .= "🔔 Bildirishnomalar: {$notifStatus}\n";
+        $message .= "💱 Valyuta: {$user->currency}\n";
+        $message .= "🌐 Til: {$langLabel}\n";
+        $message .= "⏰ Vaqt zonasi: {$user->timezone}\n\n";
 
+        if ($user->daily_budget_limit) {
+            $message .= "📅 Kunlik byudjet: " . number_format($user->daily_budget_limit, 0, '.', ' ') . " so'm\n";
+        }
         if ($user->monthly_budget_limit) {
-            $message .= "<b>Budget Limits:</b>\n";
-            if ($user->daily_budget_limit) {
-                $message .= "📅 Daily: \${$user->daily_budget_limit}\n";
-            }
-            if ($user->monthly_budget_limit) {
-                $message .= "📆 Monthly: \${$user->monthly_budget_limit}\n";
-            }
+            $message .= "📆 Oylik byudjet: " . number_format($user->monthly_budget_limit, 0, '.', ' ') . " so'm\n";
         }
 
         $this->bot->sendMessageWithKeyboard(
@@ -58,103 +43,106 @@ class SettingsHandler
 
     public function showNotificationSettings(TelegramUser $user): void
     {
-        $message = "🔔 <b>Notification Settings</b>\n\n" .
-            "Toggle notifications on/off:";
+        $message = "🔔 <b>Bildirishnoma sozlamalari</b>\n\n";
+        
+        $notifTypes = [
+            'notifications_enabled' => ['label' => 'Asosiy bildirishnomalar', 'value' => $user->notifications_enabled],
+            'morning_reminder' => ['label' => 'Ertalabki eslatma', 'value' => $user->morning_reminder],
+            'evening_reminder' => ['label' => 'Kechki xulosa', 'value' => $user->evening_reminder],
+            'budget_alerts' => ['label' => 'Byudjet ogohlantirishlari', 'value' => $user->budget_alerts],
+        ];
+
+        foreach ($notifTypes as $key => $notif) {
+            $status = $notif['value'] ? '✅' : '❌';
+            $message .= "{$status} {$notif['label']}\n";
+        }
 
         $keyboard = [
             [
-                [
-                    'text' => ($user->morning_notifications ? '✅' : '❌') . ' Morning Reminders',
-                    'callback_data' => 'toggle_notif:morning',
-                ],
+                ['text' => ($user->notifications_enabled ? '❌' : '✅') . ' Asosiy', 'callback_data' => 'toggle_notif:notifications_enabled'],
             ],
             [
-                [
-                    'text' => ($user->evening_notifications ? '✅' : '❌') . ' Evening Summaries',
-                    'callback_data' => 'toggle_notif:evening',
-                ],
+                ['text' => ($user->morning_reminder ? '❌' : '✅') . ' Ertalabki', 'callback_data' => 'toggle_notif:morning_reminder'],
+                ['text' => ($user->evening_reminder ? '❌' : '✅') . ' Kechki', 'callback_data' => 'toggle_notif:evening_reminder'],
             ],
             [
-                [
-                    'text' => ($user->debt_reminders ? '✅' : '❌') . ' Debt Reminders',
-                    'callback_data' => 'toggle_notif:debt',
-                ],
+                ['text' => ($user->budget_alerts ? '❌' : '✅') . ' Byudjet', 'callback_data' => 'toggle_notif:budget_alerts'],
             ],
             [
-                [
-                    'text' => ($user->budget_alerts ? '✅' : '❌') . ' Budget Alerts',
-                    'callback_data' => 'toggle_notif:budget',
-                ],
+                ['text' => '🔙 Orqaga', 'callback_data' => 'settings_back'],
             ],
         ];
 
         $this->bot->sendMessageWithInlineKeyboard($user->telegram_id, $message, $keyboard);
     }
 
-    public function toggleNotification(TelegramUser $user, string $type, ?int $messageId): void
-    {
-        match ($type) {
-            'morning' => $user->morning_notifications = !$user->morning_notifications,
-            'evening' => $user->evening_notifications = !$user->evening_notifications,
-            'debt' => $user->debt_reminders = !$user->debt_reminders,
-            'budget' => $user->budget_alerts = !$user->budget_alerts,
-            default => null,
-        };
-
-        $user->save();
-
-        // Rebuild keyboard with updated states
-        $keyboard = [
-            [
-                [
-                    'text' => ($user->morning_notifications ? '✅' : '❌') . ' Morning Reminders',
-                    'callback_data' => 'toggle_notif:morning',
-                ],
-            ],
-            [
-                [
-                    'text' => ($user->evening_notifications ? '✅' : '❌') . ' Evening Summaries',
-                    'callback_data' => 'toggle_notif:evening',
-                ],
-            ],
-            [
-                [
-                    'text' => ($user->debt_reminders ? '✅' : '❌') . ' Debt Reminders',
-                    'callback_data' => 'toggle_notif:debt',
-                ],
-            ],
-            [
-                [
-                    'text' => ($user->budget_alerts ? '✅' : '❌') . ' Budget Alerts',
-                    'callback_data' => 'toggle_notif:budget',
-                ],
-            ],
-        ];
-
-        $message = "🔔 <b>Notification Settings</b>\n\n" .
-            "Toggle notifications on/off:";
-
-        if ($messageId) {
-            $this->bot->editMessage($user->telegram_id, $messageId, $message, $keyboard);
-        }
-    }
-
     public function showCurrencySettings(TelegramUser $user): void
     {
-        $message = "💱 <b>Currency Settings</b>\n\n" .
-            "Current: {$user->currency}\n\n" .
-            "Select your preferred currency:";
+        $message = "💱 <b>Valyuta sozlamalari</b>\n\n";
+        $message .= "Joriy valyuta: <b>{$user->currency}</b>\n\n";
+        $message .= "Asosiy valyutani tanlang:";
 
-        $keyboard = [
-            [
-                ['text' => '🇺🇸 USD', 'callback_data' => 'set_currency:USD'],
-                ['text' => '🇪🇺 EUR', 'callback_data' => 'set_currency:EUR'],
-            ],
-            [
-                ['text' => '🇷🇺 RUB', 'callback_data' => 'set_currency:RUB'],
-                ['text' => '🇺🇿 UZS', 'callback_data' => 'set_currency:UZS'],
-            ],
+        $currencies = [
+            'UZS' => "🇺🇿 So'm (UZS)",
+            'USD' => '🇺🇸 Dollar (USD)',
+            'EUR' => '🇪🇺 Yevro (EUR)',
+            'RUB' => '🇷🇺 Rubl (RUB)',
         ];
+
+        $keyboard = [];
+        foreach ($currencies as $code => $label) {
+            $current = $user->currency === $code ? ' ✓' : '';
+            $keyboard[] = [['text' => $label . $current, 'callback_data' => "set_currency:{$code}"]];
+        }
+        $keyboard[] = [['text' => '🔙 Orqaga', 'callback_data' => 'settings_back']];
+
+        $this->bot->sendMessageWithInlineKeyboard($user->telegram_id, $message, $keyboard);
+    }
+
+    public function showLanguageSettings(TelegramUser $user): void
+    {
+        $message = "🌐 <b>Til sozlamalari</b>\n\n";
+        
+        $languages = [
+            'uz' => "🇺🇿 O'zbek tili",
+            'ru' => '🇷🇺 Русский язык',
+            'en' => '🇬🇧 English',
+        ];
+
+        $currentLang = $languages[$user->language] ?? "🇺🇿 O'zbek tili";
+        $message .= "Joriy til: <b>{$currentLang}</b>\n\n";
+        $message .= "Tilni tanlang:";
+
+        $keyboard = [];
+        foreach ($languages as $code => $label) {
+            $current = $user->language === $code ? ' ✓' : '';
+            $keyboard[] = [['text' => $label . $current, 'callback_data' => "set_language:{$code}"]];
+        }
+        $keyboard[] = [['text' => '🔙 Orqaga', 'callback_data' => 'settings_back']];
+
+        $this->bot->sendMessageWithInlineKeyboard($user->telegram_id, $message, $keyboard);
+    }
+
+    public function showTimezoneSettings(TelegramUser $user): void
+    {
+        $message = "⏰ <b>Vaqt zonasi sozlamalari</b>\n\n";
+        $message .= "Joriy vaqt zonasi: <b>{$user->timezone}</b>\n\n";
+        $message .= "Vaqt zonasini tanlang:";
+
+        $timezones = [
+            'Asia/Tashkent' => '🇺🇿 Toshkent (UTC+5)',
+            'Europe/Moscow' => '🇷🇺 Moskva (UTC+3)',
+            'Asia/Dubai' => '🇦🇪 Dubay (UTC+4)',
+            'Asia/Almaty' => '🇰🇿 Olmaota (UTC+6)',
+            'Europe/London' => '🇬🇧 London (UTC+0)',
+        ];
+
+        $keyboard = [];
+        foreach ($timezones as $tz => $label) {
+            $current = $user->timezone === $tz ? ' ✓' : '';
+            $keyboard[] = [['text' => $label . $current, 'callback_data' => "set_timezone:{$tz}"]];
+        }
+        $keyboard[] = [['text' => '🔙 Orqaga', 'callback_data' => 'settings_back']];
 
         $this->bot->sendMessageWithInlineKeyboard($user->telegram_id, $message, $keyboard);
     }
@@ -164,76 +152,40 @@ class SettingsHandler
         $user->currency = $currency;
         $user->save();
 
-        $message = "✅ Currency set to {$currency}";
+        $currencies = [
+            'UZS' => "🇺🇿 So'm",
+            'USD' => '🇺🇸 Dollar',
+            'EUR' => '🇪🇺 Yevro',
+            'RUB' => '🇷🇺 Rubl',
+        ];
+
+        $message = "✅ Valyuta o'zgartirildi: <b>{$currencies[$currency]}</b>";
 
         if ($messageId) {
             $this->bot->editMessage($user->telegram_id, $messageId, $message);
         } else {
             $this->bot->sendMessage($user->telegram_id, $message);
         }
-    }
-
-    public function showLanguageSettings(TelegramUser $user): void
-    {
-        $message = "🌐 <b>Language Settings</b>\n\n" .
-            "Current: {$user->language_code}\n\n" .
-            "Select your preferred language:";
-
-        $keyboard = [
-            [
-                ['text' => '🇬🇧 English', 'callback_data' => 'set_language:en'],
-                ['text' => '🇷🇺 Русский', 'callback_data' => 'set_language:ru'],
-            ],
-            [
-                ['text' => '🇺🇿 O\'zbek', 'callback_data' => 'set_language:uz'],
-            ],
-        ];
-
-        $this->bot->sendMessageWithInlineKeyboard($user->telegram_id, $message, $keyboard);
     }
 
     public function setLanguage(TelegramUser $user, string $language, ?int $messageId): void
     {
-        $user->language_code = $language;
+        $user->language = $language;
         $user->save();
 
-        $messages = [
-            'en' => '✅ Language set to English',
-            'ru' => '✅ Язык изменён на русский',
-            'uz' => '✅ Til o\'zbek tiliga o\'zgartirildi',
+        $languages = [
+            'uz' => "🇺🇿 O'zbek tili",
+            'ru' => '🇷🇺 Русский язык',
+            'en' => '🇬🇧 English',
         ];
 
-        $message = $messages[$language] ?? '✅ Language updated';
+        $message = "✅ Til o'zgartirildi: <b>{$languages[$language]}</b>";
 
         if ($messageId) {
             $this->bot->editMessage($user->telegram_id, $messageId, $message);
         } else {
             $this->bot->sendMessage($user->telegram_id, $message);
         }
-    }
-
-    public function showTimezoneSettings(TelegramUser $user): void
-    {
-        $message = "⏰ <b>Timezone Settings</b>\n\n" .
-            "Current: {$user->timezone}\n\n" .
-            "Select your timezone:";
-
-        $keyboard = [
-            [
-                ['text' => 'UTC+0', 'callback_data' => 'set_timezone:UTC'],
-                ['text' => 'UTC+3 (Moscow)', 'callback_data' => 'set_timezone:Europe/Moscow'],
-            ],
-            [
-                ['text' => 'UTC+5 (Tashkent)', 'callback_data' => 'set_timezone:Asia/Tashkent'],
-                ['text' => 'UTC+6 (Almaty)', 'callback_data' => 'set_timezone:Asia/Almaty'],
-            ],
-            [
-                ['text' => 'UTC-5 (New York)', 'callback_data' => 'set_timezone:America/New_York'],
-                ['text' => 'UTC-8 (Los Angeles)', 'callback_data' => 'set_timezone:America/Los_Angeles'],
-            ],
-        ];
-
-        $this->bot->sendMessageWithInlineKeyboard($user->telegram_id, $message, $keyboard);
     }
 
     public function setTimezone(TelegramUser $user, string $timezone, ?int $messageId): void
@@ -241,7 +193,7 @@ class SettingsHandler
         $user->timezone = $timezone;
         $user->save();
 
-        $message = "✅ Timezone set to {$timezone}";
+        $message = "✅ Vaqt zonasi o'zgartirildi: <b>{$timezone}</b>";
 
         if ($messageId) {
             $this->bot->editMessage($user->telegram_id, $messageId, $message);
@@ -250,190 +202,245 @@ class SettingsHandler
         }
     }
 
+    public function toggleNotification(TelegramUser $user, string $type, ?int $messageId): void
+    {
+        $validTypes = ['notifications_enabled', 'morning_reminder', 'evening_reminder', 'budget_alerts'];
+        
+        if (!in_array($type, $validTypes)) {
+            return;
+        }
+
+        $user->$type = !$user->$type;
+        $user->save();
+
+        $labels = [
+            'notifications_enabled' => 'Asosiy bildirishnomalar',
+            'morning_reminder' => 'Ertalabki eslatma',
+            'evening_reminder' => 'Kechki xulosa',
+            'budget_alerts' => 'Byudjet ogohlantirishlari',
+        ];
+
+        $status = $user->$type ? 'yoqildi ✅' : 'o\'chirildi ❌';
+        $message = "🔔 {$labels[$type]} {$status}";
+
+        if ($messageId) {
+            $this->bot->editMessage($user->telegram_id, $messageId, $message);
+        } else {
+            $this->bot->sendMessage($user->telegram_id, $message);
+        }
+
+        // Refresh notification settings view
+        $this->showNotificationSettings($user);
+    }
+
     public function exportData(TelegramUser $user): void
     {
         $this->bot->sendChatAction($user->telegram_id, 'upload_document');
 
-        // Prepare tasks data
-        $tasks = $user->tasks()->get()->map(fn($task) => [
-            'title' => $task->title,
-            'description' => $task->description,
-            'priority' => $task->priority,
-            'category' => $task->category,
-            'date' => $task->date?->format('Y-m-d'),
-            'time' => $task->time,
-            'status' => $task->status,
-            'completed_at' => $task->completed_at?->format('Y-m-d H:i:s'),
-            'rating' => $task->rating,
-            'tags' => $task->tags,
-        ]);
+        $data = $this->prepareExportData($user);
 
-        // Prepare transactions data
-        $transactions = $user->transactions()->get()->map(fn($tx) => [
-            'type' => $tx->type,
-            'amount' => $tx->amount,
-            'currency' => $tx->currency,
-            'category' => $tx->category,
-            'note' => $tx->note,
-            'date' => $tx->date?->format('Y-m-d'),
-        ]);
+        // Generate CSV
+        $csv = $this->generateCSV($data);
 
-        // Prepare debts data
-        $debts = $user->debts()->get()->map(fn($debt) => [
-            'type' => $debt->type,
-            'person_name' => $debt->person_name,
-            'amount' => $debt->amount,
-            'amount_paid' => $debt->amount_paid,
-            'currency' => $debt->currency,
-            'note' => $debt->note,
-            'date' => $debt->date?->format('Y-m-d'),
-            'due_date' => $debt->due_date?->format('Y-m-d'),
-            'status' => $debt->status,
-        ]);
-
-        $exportData = [
-            'exported_at' => now()->toIso8601String(),
-            'user' => [
-                'telegram_id' => $user->telegram_id,
-                'username' => $user->username,
-                'name' => $user->getDisplayName(),
-            ],
-            'statistics' => [
-                'total_points' => $user->total_points,
-                'tasks_completed' => $user->tasks_completed,
-                'streak_days' => $user->streak_days,
-            ],
-            'tasks' => $tasks,
-            'transactions' => $transactions,
-            'debts' => $debts,
-        ];
-
-        // Create JSON file
-        $filename = "export_{$user->telegram_id}_" . now()->format('Y-m-d_His') . ".json";
-        $filepath = storage_path("app/exports/{$filename}");
-
-        if (!is_dir(dirname($filepath))) {
-            mkdir(dirname($filepath), 0755, true);
+        // Save temporarily
+        $filename = "export_{$user->telegram_id}_" . now()->format('Y-m-d_H-i-s') . ".csv";
+        $path = storage_path("app/exports/{$filename}");
+        
+        if (!file_exists(dirname($path))) {
+            mkdir(dirname($path), 0755, true);
         }
+        
+        file_put_contents($path, $csv);
 
-        file_put_contents($filepath, json_encode($exportData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
-
-        // Send file to user
+        // Send file
         $this->bot->sendDocument(
             $user->telegram_id,
-            new \CURLFile($filepath, 'application/json', $filename),
-            "📤 <b>Data Export</b>\n\n" .
-            "📋 Tasks: {$tasks->count()}\n" .
-            "💰 Transactions: {$transactions->count()}\n" .
-            "💳 Debts: {$debts->count()}\n\n" .
-            "Exported: " . now()->format('M j, Y H:i')
+            new \CURLFile($path, 'text/csv', $filename),
+            "📤 Ma'lumotlar eksporti\n📅 " . now()->format('d.m.Y H:i')
         );
 
-        // Clean up file after sending
-        @unlink($filepath);
+        // Cleanup
+        unlink($path);
     }
 
     public function startImport(TelegramUser $user): void
     {
-        $user->setState('importing_data', ['step' => 'waiting_file']);
+        $user->setState('importing_data');
 
         $this->bot->sendMessage(
             $user->telegram_id,
-            "📥 <b>Import Data</b>\n\n" .
-            "Send me a JSON export file to import your data.\n\n" .
-            "⚠️ <b>Warning:</b> Importing will add new records. " .
-            "Existing data will not be deleted.\n\n" .
-            "Send the file or /cancel to abort."
+            "📥 <b>Ma'lumotlarni import qilish</b>\n\n" .
+            "CSV faylni yuboring.\n\n" .
+            "Fayl formati:\n" .
+            "• Vazifalar: title, date, priority, category\n" .
+            "• Tranzaksiyalar: type, amount, category, note, date\n" .
+            "• Qarzlar: type, person, amount, due_date\n\n" .
+            "❌ Bekor qilish: /bekor"
         );
     }
 
-    public function processImport(TelegramUser $user, array $data): void
+    public function processImport(TelegramUser $user, string $filePath): void
     {
-        $imported = [
-            'tasks' => 0,
-            'transactions' => 0,
-            'debts' => 0,
+        $this->bot->sendChatAction($user->telegram_id, 'typing');
+
+        try {
+            $content = file_get_contents($filePath);
+            $lines = explode("\n", trim($content));
+            
+            if (count($lines) < 2) {
+                $this->bot->sendMessage($user->telegram_id, "❌ Fayl bo'sh yoki noto'g'ri format.");
+                return;
+            }
+
+            $header = str_getcsv(array_shift($lines));
+            $imported = ['tasks' => 0, 'transactions' => 0, 'debts' => 0];
+
+            foreach ($lines as $line) {
+                if (empty(trim($line))) continue;
+                
+                $row = str_getcsv($line);
+                $data = array_combine($header, $row);
+
+                // Detect type and import
+                if (isset($data['title'])) {
+                    $this->importTask($user, $data);
+                    $imported['tasks']++;
+                } elseif (isset($data['amount']) && isset($data['type'])) {
+                    if (isset($data['person'])) {
+                        $this->importDebt($user, $data);
+                        $imported['debts']++;
+                    } else {
+                        $this->importTransaction($user, $data);
+                        $imported['transactions']++;
+                    }
+                }
+            }
+
+            $user->clearState();
+
+            $message = "✅ <b>Import yakunlandi!</b>\n\n" .
+                "📋 Vazifalar: {$imported['tasks']}\n" .
+                "💰 Tranzaksiyalar: {$imported['transactions']}\n" .
+                "💳 Qarzlar: {$imported['debts']}";
+
+            $this->bot->sendMessage($user->telegram_id, $message);
+
+        } catch (\Exception $e) {
+            $user->clearState();
+            $this->bot->sendMessage(
+                $user->telegram_id,
+                "❌ Import xatosi: " . $e->getMessage()
+            );
+        }
+    }
+
+    protected function prepareExportData(TelegramUser $user): array
+    {
+        return [
+            'tasks' => $user->tasks()->get()->map(fn($t) => [
+                'title' => $t->title,
+                'description' => $t->description,
+                'date' => $t->date?->format('Y-m-d'),
+                'time' => $t->time,
+                'priority' => $t->priority,
+                'category' => $t->category,
+                'status' => $t->status,
+                'rating' => $t->rating,
+                'created_at' => $t->created_at->format('Y-m-d H:i:s'),
+            ])->toArray(),
+
+            'transactions' => $user->transactions()->get()->map(fn($t) => [
+                'type' => $t->type,
+                'amount' => $t->amount,
+                'currency' => $t->currency,
+                'category' => $t->category,
+                'note' => $t->note,
+                'date' => $t->date->format('Y-m-d'),
+                'created_at' => $t->created_at->format('Y-m-d H:i:s'),
+            ])->toArray(),
+
+            'debts' => $user->debts()->get()->map(fn($d) => [
+                'type' => $d->type,
+                'person_name' => $d->person_name,
+                'amount' => $d->amount,
+                'amount_paid' => $d->amount_paid,
+                'currency' => $d->currency,
+                'due_date' => $d->due_date?->format('Y-m-d'),
+                'status' => $d->status,
+                'note' => $d->note,
+                'created_at' => $d->created_at->format('Y-m-d H:i:s'),
+            ])->toArray(),
         ];
-
-        // Import tasks
-        if (!empty($data['tasks'])) {
-            foreach ($data['tasks'] as $taskData) {
-                Task::create([
-                    'telegram_user_id' => $user->id,
-                    'title' => $taskData['title'],
-                    'description' => $taskData['description'] ?? null,
-                    'priority' => $taskData['priority'] ?? 'medium',
-                    'category' => $taskData['category'] ?? 'other',
-                    'date' => $taskData['date'] ?? null,
-                    'time' => $taskData['time'] ?? null,
-                    'status' => $taskData['status'] ?? 'pending',
-                    'tags' => $taskData['tags'] ?? [],
-                ]);
-                $imported['tasks']++;
-            }
-        }
-
-        // Import transactions
-        if (!empty($data['transactions'])) {
-            foreach ($data['transactions'] as $txData) {
-                Transaction::create([
-                    'telegram_user_id' => $user->id,
-                    'type' => $txData['type'],
-                    'amount' => $txData['amount'],
-                    'currency' => $txData['currency'] ?? $user->currency,
-                    'category' => $txData['category'] ?? 'other',
-                    'note' => $txData['note'] ?? null,
-                    'date' => $txData['date'] ?? today(),
-                ]);
-                $imported['transactions']++;
-            }
-        }
-
-        // Import debts
-        if (!empty($data['debts'])) {
-            foreach ($data['debts'] as $debtData) {
-                Debt::create([
-                    'telegram_user_id' => $user->id,
-                    'type' => $debtData['type'],
-                    'person_name' => $debtData['person_name'],
-                    'amount' => $debtData['amount'],
-                    'amount_paid' => $debtData['amount_paid'] ?? 0,
-                    'currency' => $debtData['currency'] ?? $user->currency,
-                    'note' => $debtData['note'] ?? null,
-                    'date' => $debtData['date'] ?? today(),
-                    'due_date' => $debtData['due_date'] ?? null,
-                    'status' => $debtData['status'] ?? 'active',
-                ]);
-                $imported['debts']++;
-            }
-        }
-
-        $user->clearState();
-
-        $this->bot->sendMessage(
-            $user->telegram_id,
-            "✅ <b>Import Complete!</b>\n\n" .
-            "📋 Tasks imported: {$imported['tasks']}\n" .
-            "💰 Transactions imported: {$imported['transactions']}\n" .
-            "💳 Debts imported: {$imported['debts']}"
-        );
     }
 
-    public function setBudgetLimit(TelegramUser $user, string $type, float $amount): void
+    protected function generateCSV(array $data): string
     {
-        match ($type) {
-            'daily' => $user->daily_budget_limit = $amount,
-            'weekly' => $user->weekly_budget_limit = $amount,
-            'monthly' => $user->monthly_budget_limit = $amount,
-            default => null,
-        };
+        $output = "";
 
-        $user->save();
+        // Tasks section
+        if (!empty($data['tasks'])) {
+            $output .= "=== VAZIFALAR ===\n";
+            $output .= implode(',', array_keys($data['tasks'][0])) . "\n";
+            foreach ($data['tasks'] as $row) {
+                $output .= implode(',', array_map(fn($v) => '"' . str_replace('"', '""', $v ?? '') . '"', $row)) . "\n";
+            }
+            $output .= "\n";
+        }
 
-        $this->bot->sendMessage(
-            $user->telegram_id,
-            "✅ " . ucfirst($type) . " budget limit set to \$" . number_format($amount, 2)
-        );
+        // Transactions section
+        if (!empty($data['transactions'])) {
+            $output .= "=== TRANZAKSIYALAR ===\n";
+            $output .= implode(',', array_keys($data['transactions'][0])) . "\n";
+            foreach ($data['transactions'] as $row) {
+                $output .= implode(',', array_map(fn($v) => '"' . str_replace('"', '""', $v ?? '') . '"', $row)) . "\n";
+            }
+            $output .= "\n";
+        }
+
+        // Debts section
+        if (!empty($data['debts'])) {
+            $output .= "=== QARZLAR ===\n";
+            $output .= implode(',', array_keys($data['debts'][0])) . "\n";
+            foreach ($data['debts'] as $row) {
+                $output .= implode(',', array_map(fn($v) => '"' . str_replace('"', '""', $v ?? '') . '"', $row)) . "\n";
+            }
+        }
+
+        return $output;
+    }
+
+    protected function importTask(TelegramUser $user, array $data): void
+    {
+        $user->tasks()->create([
+            'title' => $data['title'],
+            'description' => $data['description'] ?? null,
+            'date' => isset($data['date']) ? \Carbon\Carbon::parse($data['date']) : today(),
+            'priority' => $data['priority'] ?? 'medium',
+            'category' => $data['category'] ?? 'other',
+        ]);
+    }
+
+    protected function importTransaction(TelegramUser $user, array $data): void
+    {
+        $user->transactions()->create([
+            'type' => $data['type'],
+            'amount' => (float)$data['amount'],
+            'currency' => $data['currency'] ?? $user->currency,
+            'category' => $data['category'] ?? 'other',
+            'note' => $data['note'] ?? null,
+            'date' => isset($data['date']) ? \Carbon\Carbon::parse($data['date']) : today(),
+        ]);
+    }
+
+    protected function importDebt(TelegramUser $user, array $data): void
+    {
+        $user->debts()->create([
+            'type' => $data['type'],
+            'person_name' => $data['person'],
+            'amount' => (float)$data['amount'],
+            'currency' => $data['currency'] ?? $user->currency,
+            'due_date' => isset($data['due_date']) ? \Carbon\Carbon::parse($data['due_date']) : null,
+            'date' => today(),
+        ]);
     }
 }
-

@@ -17,8 +17,7 @@ class CalendarHandler
 
     public function showToday(TelegramUser $user): void
     {
-        $date = today();
-        $this->showDayView($user, $date);
+        $this->showDay($user, today()->format('Y-m-d'));
     }
 
     public function showWeek(TelegramUser $user): void
@@ -28,7 +27,6 @@ class CalendarHandler
 
         $tasks = $user->tasks()
             ->whereBetween('date', [$startOfWeek, $endOfWeek])
-            ->orderBy('date')
             ->get()
             ->groupBy(fn($task) => $task->date->format('Y-m-d'));
 
@@ -43,61 +41,69 @@ class CalendarHandler
             ->get()
             ->groupBy(fn($debt) => $debt->due_date->format('Y-m-d'));
 
-        $message = "📆 <b>This Week</b>\n";
-        $message .= "{$startOfWeek->format('M j')} - {$endOfWeek->format('M j, Y')}\n\n";
+        $weekdays = ['Du', 'Se', 'Cho', 'Pa', 'Ju', 'Sha', 'Ya'];
+        $message = "📆 <b>Haftalik taqvim</b>\n";
+        $message .= "{$startOfWeek->format('d.m')} - {$endOfWeek->format('d.m.Y')}\n\n";
 
         for ($i = 0; $i < 7; $i++) {
-            $date = $startOfWeek->copy()->addDays($i);
-            $dateKey = $date->format('Y-m-d');
-            $isToday = $date->isToday();
-
-            $dayName = $date->format('D');
-            $dayNum = $date->format('j');
-
-            $message .= $isToday ? "▶️ " : "   ";
-            $message .= "<b>{$dayName} {$dayNum}</b>";
+            $day = $startOfWeek->copy()->addDays($i);
+            $dateKey = $day->format('Y-m-d');
+            $isToday = $day->isToday();
+            
+            $dayName = $weekdays[$i];
+            $dayNum = $day->format('d');
+            
+            $prefix = $isToday ? '👉 ' : '';
+            $suffix = $isToday ? ' ◀️' : '';
+            
+            $message .= "{$prefix}<b>{$dayName}, {$dayNum}</b>{$suffix}\n";
 
             $dayTasks = $tasks->get($dateKey, collect());
             $dayTx = $transactions->get($dateKey, collect());
             $dayDebts = $debts->get($dateKey, collect());
 
-            $indicators = [];
-            if ($dayTasks->isNotEmpty()) {
-                $pending = $dayTasks->where('status', 'pending')->count();
-                $completed = $dayTasks->where('status', 'completed')->count();
-                $indicators[] = "📋{$pending}/{$dayTasks->count()}";
+            if ($dayTasks->isEmpty() && $dayTx->isEmpty() && $dayDebts->isEmpty()) {
+                $message .= "   <i>Bo'sh</i>\n";
+            } else {
+                if ($dayTasks->isNotEmpty()) {
+                    $completed = $dayTasks->where('status', 'completed')->count();
+                    $total = $dayTasks->count();
+                    $message .= "   📋 Vazifalar: {$completed}/{$total}\n";
+                }
+                
+                if ($dayTx->isNotEmpty()) {
+                    $income = $dayTx->where('type', 'income')->sum('amount');
+                    $expense = $dayTx->where('type', 'expense')->sum('amount');
+                    if ($income > 0) {
+                        $message .= "   💵 +" . number_format($income, 0, '.', ' ') . "\n";
+                    }
+                    if ($expense > 0) {
+                        $message .= "   💸 -" . number_format($expense, 0, '.', ' ') . "\n";
+                    }
+                }
+                
+                if ($dayDebts->isNotEmpty()) {
+                    $message .= "   ⏰ Qarz muddati: {$dayDebts->count()} ta\n";
+                }
             }
-            if ($dayTx->isNotEmpty()) {
-                $income = $dayTx->where('type', 'income')->sum('amount');
-                $expense = $dayTx->where('type', 'expense')->sum('amount');
-                if ($income > 0) $indicators[] = "💵+{$income}";
-                if ($expense > 0) $indicators[] = "💸-{$expense}";
-            }
-            if ($dayDebts->isNotEmpty()) {
-                $indicators[] = "⏰{$dayDebts->count()}";
-            }
-
-            if (!empty($indicators)) {
-                $message .= " | " . implode(' ', $indicators);
-            }
-
             $message .= "\n";
         }
 
-        // Week summary
-        $weekTasks = $tasks->flatten();
-        $weekTx = $transactions->flatten();
+        $keyboard = [];
+        for ($i = 0; $i < 7; $i++) {
+            $day = $startOfWeek->copy()->addDays($i);
+            if ($i % 4 === 0) {
+                $keyboard[] = [];
+            }
+            $keyboard[count($keyboard) - 1][] = [
+                'text' => $day->format('d'),
+                'callback_data' => 'cal_day:' . $day->format('Y-m-d'),
+            ];
+        }
 
-        $message .= "\n<b>Week Summary:</b>\n";
-        $message .= "📋 Tasks: {$weekTasks->where('status', 'completed')->count()}/{$weekTasks->count()} done\n";
-        $message .= "💵 Income: \$" . number_format($weekTx->where('type', 'income')->sum('amount'), 2) . "\n";
-        $message .= "💸 Expenses: \$" . number_format($weekTx->where('type', 'expense')->sum('amount'), 2);
-
-        $keyboard = [
-            [
-                ['text' => '◀️ Prev Week', 'callback_data' => 'cal_nav:week_' . $startOfWeek->subWeek()->format('Y-m-d')],
-                ['text' => 'Next Week ▶️', 'callback_data' => 'cal_nav:week_' . $endOfWeek->addDay()->format('Y-m-d')],
-            ],
+        $keyboard[] = [
+            ['text' => '◀️ Oldingi hafta', 'callback_data' => 'cal_nav:week_prev'],
+            ['text' => 'Keyingi hafta ▶️', 'callback_data' => 'cal_nav:week_next'],
         ];
 
         $this->bot->sendMessageWithInlineKeyboard($user->telegram_id, $message, $keyboard);
@@ -111,8 +117,7 @@ class CalendarHandler
 
         $tasks = $user->tasks()
             ->whereBetween('date', [$startOfMonth, $endOfMonth])
-            ->get()
-            ->groupBy(fn($task) => $task->date->format('j'));
+            ->get();
 
         $transactions = $user->transactions()
             ->whereBetween('date', [$startOfMonth, $endOfMonth])
@@ -121,213 +126,206 @@ class CalendarHandler
         $debts = $user->debts()
             ->active()
             ->whereBetween('due_date', [$startOfMonth, $endOfMonth])
-            ->get()
-            ->groupBy(fn($debt) => $debt->due_date->format('j'));
+            ->get();
 
-        $message = "🗓️ <b>{$date->format('F Y')}</b>\n\n";
+        $months = [
+            1 => 'Yanvar', 2 => 'Fevral', 3 => 'Mart', 4 => 'Aprel',
+            5 => 'May', 6 => 'Iyun', 7 => 'Iyul', 8 => 'Avgust',
+            9 => 'Sentabr', 10 => 'Oktabr', 11 => 'Noyabr', 12 => 'Dekabr'
+        ];
 
-        // Calendar header
-        $message .= "Mo Tu We Th Fr Sa Su\n";
+        $monthName = $months[$date->month];
+        $message = "🗓️ <b>{$monthName} {$date->year}</b>\n\n";
 
-        // Get the day of week for the first day (0 = Monday, 6 = Sunday)
-        $firstDayOfWeek = $startOfMonth->dayOfWeekIso - 1;
+        $completedTasks = $tasks->where('status', 'completed')->count();
+        $totalTasks = $tasks->count();
 
-        // Add empty spaces for days before the first of the month
-        $message .= str_repeat("   ", $firstDayOfWeek);
+        $income = $transactions->where('type', 'income')->sum('amount');
+        $expense = $transactions->where('type', 'expense')->sum('amount');
 
-        $daysInMonth = $endOfMonth->day;
-        $currentDay = now()->day;
-        $currentMonth = now()->month;
+        $message .= "<b>📋 Vazifalar:</b> {$completedTasks}/{$totalTasks}\n";
+        $message .= "<b>💵 Daromad:</b> " . number_format($income, 0, '.', ' ') . " so'm\n";
+        $message .= "<b>💸 Xarajat:</b> " . number_format($expense, 0, '.', ' ') . " so'm\n";
+        $message .= "<b>📊 Farq:</b> " . number_format($income - $expense, 0, '.', ' ') . " so'm\n";
+        
+        if ($debts->count() > 0) {
+            $message .= "<b>⏰ Qarz muddatlari:</b> {$debts->count()} ta\n";
+        }
 
-        for ($day = 1; $day <= $daysInMonth; $day++) {
-            $hasTask = $tasks->has((string)$day);
-            $hasDebt = $debts->has((string)$day);
-            $isToday = $date->month === $currentMonth && $day === $currentDay;
+        $message .= "\n<b>Taqvim:</b>\n";
+        $message .= "<code>Du Se Ch Pa Ju Sh Ya</code>\n";
 
+        $dayOfWeek = $startOfMonth->dayOfWeekIso;
+        $message .= "<code>" . str_repeat("   ", $dayOfWeek - 1);
+
+        for ($day = 1; $day <= $endOfMonth->day; $day++) {
+            $currentDate = $startOfMonth->copy()->addDays($day - 1);
+            $dateKey = $currentDate->format('Y-m-d');
+            
+            $hasTasks = $tasks->where('date', $currentDate->format('Y-m-d'))->isNotEmpty();
+            $hasTx = $transactions->where('date', $currentDate->format('Y-m-d'))->isNotEmpty();
+            $hasDebt = $debts->filter(fn($d) => $d->due_date->format('Y-m-d') === $dateKey)->isNotEmpty();
+            
+            $isToday = $currentDate->isToday();
+            
+            $dayStr = str_pad($day, 2, ' ', STR_PAD_LEFT);
+            
             if ($isToday) {
-                $message .= "▶️";
-            } elseif ($hasDebt) {
-                $message .= "⏰";
-            } elseif ($hasTask) {
-                $dayTasks = $tasks->get((string)$day);
-                $allDone = $dayTasks->every(fn($t) => $t->status === 'completed');
-                $message .= $allDone ? "✅" : "📋";
-            } else {
-                $message .= sprintf("%2d", $day);
+                $dayStr = "[{$day}]";
+                $dayStr = str_pad($dayStr, 4, ' ', STR_PAD_BOTH);
+                $dayStr = substr($dayStr, 0, 3);
             }
-
-            // New line after Sunday
-            $dayOfWeek = ($firstDayOfWeek + $day) % 7;
-            if ($dayOfWeek === 0) {
+            
+            $message .= $dayStr;
+            
+            if (($dayOfWeek - 1 + $day) % 7 === 0) {
                 $message .= "\n";
             } else {
                 $message .= " ";
             }
         }
-
-        // Month summary
-        $allTasks = $tasks->flatten();
-        $message .= "\n\n<b>Month Summary:</b>\n";
-        $message .= "📋 Tasks: {$allTasks->where('status', 'completed')->count()}/{$allTasks->count()}\n";
-        $message .= "💵 Income: \$" . number_format($transactions->where('type', 'income')->sum('amount'), 2) . "\n";
-        $message .= "💸 Expenses: \$" . number_format($transactions->where('type', 'expense')->sum('amount'), 2);
+        $message .= "</code>";
 
         $keyboard = [
             [
-                ['text' => '◀️ Prev', 'callback_data' => 'cal_nav:month_' . $startOfMonth->subMonth()->format('Y-m')],
-                ['text' => 'Today', 'callback_data' => 'cal_nav:month_' . now()->format('Y-m')],
-                ['text' => 'Next ▶️', 'callback_data' => 'cal_nav:month_' . $endOfMonth->addDay()->format('Y-m')],
+                ['text' => '◀️ Oldingi oy', 'callback_data' => 'cal_nav:month_' . $date->copy()->subMonth()->format('Y-m')],
+                ['text' => 'Keyingi oy ▶️', 'callback_data' => 'cal_nav:month_' . $date->copy()->addMonth()->format('Y-m')],
             ],
         ];
 
         $this->bot->sendMessageWithInlineKeyboard($user->telegram_id, $message, $keyboard);
     }
 
-    public function showYear(TelegramUser $user): void
+    public function showYear(TelegramUser $user, ?int $year = null): void
     {
-        $year = now()->year;
+        $year = $year ?? now()->year;
+        $startOfYear = Carbon::create($year)->startOfYear();
+        $endOfYear = Carbon::create($year)->endOfYear();
 
-        $message = "📊 <b>{$year} Overview</b>\n\n";
+        $tasks = $user->tasks()
+            ->whereBetween('date', [$startOfYear, $endOfYear])
+            ->get()
+            ->groupBy(fn($task) => $task->date->month);
+
+        $transactions = $user->transactions()
+            ->whereBetween('date', [$startOfYear, $endOfYear])
+            ->get()
+            ->groupBy(fn($tx) => $tx->date->month);
+
+        $months = [
+            1 => 'Yanvar', 2 => 'Fevral', 3 => 'Mart', 4 => 'Aprel',
+            5 => 'May', 6 => 'Iyun', 7 => 'Iyul', 8 => 'Avgust',
+            9 => 'Sentabr', 10 => 'Oktabr', 11 => 'Noyabr', 12 => 'Dekabr'
+        ];
+
+        $message = "📊 <b>Yillik ko'rinish - {$year}</b>\n\n";
 
         $totalTasks = 0;
-        $completedTasks = 0;
+        $totalCompleted = 0;
         $totalIncome = 0;
         $totalExpense = 0;
 
-        for ($month = 1; $month <= 12; $month++) {
-            $startDate = Carbon::create($year, $month, 1);
-            $endDate = $startDate->copy()->endOfMonth();
+        foreach ($months as $monthNum => $monthName) {
+            $monthTasks = $tasks->get($monthNum, collect());
+            $monthTx = $transactions->get($monthNum, collect());
 
-            $monthTasks = $user->tasks()
-                ->whereBetween('date', [$startDate, $endDate])
-                ->get();
-
-            $monthTx = $user->transactions()
-                ->whereBetween('date', [$startDate, $endDate])
-                ->get();
-
-            $taskCount = $monthTasks->count();
-            $doneCount = $monthTasks->where('status', 'completed')->count();
+            $completed = $monthTasks->where('status', 'completed')->count();
+            $total = $monthTasks->count();
             $income = $monthTx->where('type', 'income')->sum('amount');
             $expense = $monthTx->where('type', 'expense')->sum('amount');
 
-            $totalTasks += $taskCount;
-            $completedTasks += $doneCount;
+            $totalTasks += $total;
+            $totalCompleted += $completed;
             $totalIncome += $income;
             $totalExpense += $expense;
 
-            $monthName = $startDate->format('M');
-            $isCurrentMonth = now()->month === $month;
+            $isCurrentMonth = now()->year === $year && now()->month === $monthNum;
+            $prefix = $isCurrentMonth ? '👉 ' : '';
 
-            $message .= $isCurrentMonth ? "▶️ " : "   ";
-            $message .= "<b>{$monthName}</b>: ";
-
-            if ($taskCount > 0) {
-                $percentage = round(($doneCount / $taskCount) * 100);
-                $message .= "📋{$percentage}% ";
+            $message .= "{$prefix}<b>{$monthName}:</b>\n";
+            $message .= "   📋 Vazifalar: {$completed}/{$total}";
+            
+            if ($income > 0 || $expense > 0) {
+                $message .= " | ";
+                if ($income > 0) {
+                    $message .= "💵 " . number_format($income / 1000, 0) . "K";
+                }
+                if ($expense > 0) {
+                    $message .= " 💸 " . number_format($expense / 1000, 0) . "K";
+                }
             }
-
-            $net = $income - $expense;
-            $netEmoji = $net >= 0 ? '💚' : '❤️';
-            $message .= "{$netEmoji}\$" . number_format(abs($net), 0);
             $message .= "\n";
         }
 
-        $message .= "\n<b>Year Total:</b>\n";
-        $percentage = $totalTasks > 0 ? round(($completedTasks / $totalTasks) * 100) : 0;
-        $message .= "📋 Tasks: {$completedTasks}/{$totalTasks} ({$percentage}%)\n";
-        $message .= "💵 Income: \$" . number_format($totalIncome, 2) . "\n";
-        $message .= "💸 Expenses: \$" . number_format($totalExpense, 2) . "\n";
-        $message .= "📊 Net: \$" . number_format($totalIncome - $totalExpense, 2);
+        $percentage = $totalTasks > 0 ? round(($totalCompleted / $totalTasks) * 100) : 0;
+        
+        $message .= "\n<b>📊 Yillik xulosa:</b>\n";
+        $message .= "📋 Vazifalar: {$totalCompleted}/{$totalTasks} ({$percentage}%)\n";
+        $message .= "💵 Daromad: " . number_format($totalIncome, 0, '.', ' ') . "\n";
+        $message .= "💸 Xarajat: " . number_format($totalExpense, 0, '.', ' ') . "\n";
+        $message .= "📊 Farq: " . number_format($totalIncome - $totalExpense, 0, '.', ' ');
 
-        $this->bot->sendMessage($user->telegram_id, $message);
+        $keyboard = [
+            [
+                ['text' => "◀️ {$year - 1}", 'callback_data' => "cal_nav:year_{$year - 1}"],
+                ['text' => "{$year + 1} ▶️", 'callback_data' => "cal_nav:year_{$year + 1}"],
+            ],
+        ];
+
+        $this->bot->sendMessageWithInlineKeyboard($user->telegram_id, $message, $keyboard);
     }
 
-    public function startCustomRange(TelegramUser $user): void
+    public function showDay(TelegramUser $user, string $dateStr, ?int $messageId = null): void
     {
-        $user->setState('calendar_range', ['step' => 'start_date']);
+        $date = Carbon::parse($dateStr);
 
-        $this->bot->sendMessage(
-            $user->telegram_id,
-            "🔍 <b>Custom Date Range</b>\n\n" .
-            "Enter the start date:\n\n" .
-            "Format: <code>YYYY-MM-DD</code> or <code>DD.MM.YYYY</code>\n" .
-            "Example: <code>2024-01-01</code>"
-        );
-    }
-
-    public function showDay(TelegramUser $user, string $dateString, ?int $messageId): void
-    {
-        $date = Carbon::parse($dateString);
-        $this->showDayView($user, $date, $messageId);
-    }
-
-    public function navigate(TelegramUser $user, string $value, ?int $messageId): void
-    {
-        [$type, $dateString] = explode('_', $value, 2);
-
-        match ($type) {
-            'week' => $this->showWeekFromDate($user, Carbon::parse($dateString), $messageId),
-            'month' => $this->showMonthFromDate($user, Carbon::parse($dateString . '-01'), $messageId),
-            'day' => $this->showDayView($user, Carbon::parse($dateString), $messageId),
-            default => null,
-        };
-    }
-
-    protected function showDayView(TelegramUser $user, Carbon $date, ?int $messageId = null): void
-    {
-        $tasks = $user->tasks()->whereDate('date', $date)->orderBy('time')->get();
+        $tasks = $user->tasks()->whereDate('date', $date)->get();
         $transactions = $user->transactions()->whereDate('date', $date)->get();
-        $debts = $user->debts()->active()->whereDate('due_date', $date)->get();
+        $debts = $user->debts()->whereDate('due_date', $date)->get();
 
-        $message = "📅 <b>{$date->format('l, F j, Y')}</b>\n\n";
+        $weekdays = ['Yakshanba', 'Dushanba', 'Seshanba', 'Chorshanba', 'Payshanba', 'Juma', 'Shanba'];
+        $dayName = $weekdays[$date->dayOfWeek];
 
-        // Tasks
-        if ($tasks->isNotEmpty()) {
-            $message .= "<b>📋 Tasks:</b>\n";
-            foreach ($tasks as $task) {
-                $status = $task->status === 'completed' ? '✅' : $task->getPriorityEmoji();
-                $time = $task->time ? substr($task->time, 0, 5) . ' ' : '';
-                $message .= "{$status} {$time}{$task->title}\n";
-            }
-            $message .= "\n";
-        }
-
-        // Transactions
-        if ($transactions->isNotEmpty()) {
-            $message .= "<b>💰 Transactions:</b>\n";
-            foreach ($transactions as $tx) {
-                $emoji = $tx->type === 'income' ? '💵' : '💸';
-                $message .= "{$emoji} {$tx->getFormattedAmount()} - {$tx->note}\n";
-            }
-
-            $income = $transactions->where('type', 'income')->sum('amount');
-            $expense = $transactions->where('type', 'expense')->sum('amount');
-            $message .= "📊 Net: \$" . number_format($income - $expense, 2) . "\n\n";
-        }
-
-        // Debts due
-        if ($debts->isNotEmpty()) {
-            $message .= "<b>⏰ Debts Due:</b>\n";
-            foreach ($debts as $debt) {
-                $emoji = $debt->type === 'given' ? '📤' : '📥';
-                $message .= "{$emoji} {$debt->person_name}: {$debt->getFormattedRemainingAmount()}\n";
-            }
-            $message .= "\n";
-        }
+        $message = "📅 <b>{$date->format('d.m.Y')}, {$dayName}</b>\n\n";
 
         if ($tasks->isEmpty() && $transactions->isEmpty() && $debts->isEmpty()) {
-            $message .= "No activities for this day.";
+            $message .= "Bu kunda hech narsa yo'q.";
+        } else {
+            if ($tasks->isNotEmpty()) {
+                $message .= "<b>📋 Vazifalar:</b>\n";
+                foreach ($tasks as $task) {
+                    $status = $task->status === 'completed' ? '✅' : '⏳';
+                    $message .= "{$status} {$task->title}\n";
+                }
+                $message .= "\n";
+            }
+
+            if ($transactions->isNotEmpty()) {
+                $message .= "<b>💰 Tranzaksiyalar:</b>\n";
+                foreach ($transactions as $tx) {
+                    $emoji = $tx->type === 'income' ? '💵' : '💸';
+                    $sign = $tx->type === 'income' ? '+' : '-';
+                    $message .= "{$emoji} {$sign}" . number_format($tx->amount, 0, '.', ' ') . " - {$tx->note}\n";
+                }
+                $message .= "\n";
+            }
+
+            if ($debts->isNotEmpty()) {
+                $message .= "<b>⏰ Qarz muddatlari:</b>\n";
+                foreach ($debts as $debt) {
+                    $emoji = $debt->type === 'given' ? '📤' : '📥';
+                    $message .= "{$emoji} {$debt->person_name} - " . number_format($debt->amount, 0, '.', ' ') . "\n";
+                }
+            }
         }
 
         $keyboard = [
             [
-                ['text' => '◀️ Prev Day', 'callback_data' => 'cal_nav:day_' . $date->copy()->subDay()->format('Y-m-d')],
-                ['text' => 'Next Day ▶️', 'callback_data' => 'cal_nav:day_' . $date->copy()->addDay()->format('Y-m-d')],
+                ['text' => '◀️ Oldingi kun', 'callback_data' => 'cal_day:' . $date->copy()->subDay()->format('Y-m-d')],
+                ['text' => 'Keyingi kun ▶️', 'callback_data' => 'cal_day:' . $date->copy()->addDay()->format('Y-m-d')],
             ],
             [
-                ['text' => '📆 Week View', 'callback_data' => 'cal_nav:week_' . $date->copy()->startOfWeek()->format('Y-m-d')],
-                ['text' => '🗓️ Month View', 'callback_data' => 'cal_nav:month_' . $date->format('Y-m')],
+                ['text' => '📆 Hafta ko\'rinishi', 'callback_data' => 'cal_nav:week_current'],
             ],
         ];
 
@@ -338,16 +336,51 @@ class CalendarHandler
         }
     }
 
-    protected function showWeekFromDate(TelegramUser $user, Carbon $date, ?int $messageId): void
+    public function startCustomRange(TelegramUser $user): void
     {
-        // For now, just call showWeek with the date context
-        // In a full implementation, you'd pass the date and handle editing
+        $user->setState('custom_range', ['step' => 'start_date']);
+        
+        $this->bot->sendMessage(
+            $user->telegram_id,
+            "🔍 <b>Maxsus oraliq</b>\n\n" .
+            "Boshlanish sanasini kiriting:\n\n" .
+            "💡 Format: <code>DD.MM.YYYY</code>\n" .
+            "Misol: <code>01.01.2024</code>"
+        );
+    }
+
+    public function navigate(TelegramUser $user, string $value, ?int $messageId): void
+    {
+        [$type, $param] = explode('_', $value, 2) + [null, null];
+
+        match ($type) {
+            'week' => $this->navigateWeek($user, $param, $messageId),
+            'month' => $this->navigateMonth($user, $param, $messageId),
+            'year' => $this->navigateYear($user, $param, $messageId),
+            default => null,
+        };
+    }
+
+    protected function navigateWeek(TelegramUser $user, string $direction, ?int $messageId): void
+    {
+        // Navigation logic - week
+        if ($direction === 'prev') {
+            // Previous week logic
+        } elseif ($direction === 'next') {
+            // Next week logic
+        }
+        
         $this->showWeek($user);
     }
 
-    protected function showMonthFromDate(TelegramUser $user, Carbon $date, ?int $messageId): void
+    protected function navigateMonth(TelegramUser $user, string $param, ?int $messageId): void
     {
+        $date = Carbon::parse($param . '-01');
         $this->showMonth($user, $date);
     }
-}
 
+    protected function navigateYear(TelegramUser $user, string $year, ?int $messageId): void
+    {
+        $this->showYear($user, (int)$year);
+    }
+}

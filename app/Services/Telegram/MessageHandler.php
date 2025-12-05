@@ -52,8 +52,7 @@ class MessageHandler
                 $this->handleCallbackQuery($update['callback_query']);
             }
         } catch (\Throwable $e) {
-            // Log to telegram channel
-            Log::channel('telegram')->error('Message handler error', [
+            Log::error('Xabar ishlovchisi xatolik', [
                 'error' => $e->getMessage(),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
@@ -61,17 +60,11 @@ class MessageHandler
                 'update' => $update,
             ]);
 
-            // Try to notify user about error
             $this->notifyUserAboutError($update);
-
-            // Re-throw for controller to handle
             throw $e;
         }
     }
 
-    /**
-     * Notify user that an error occurred
-     */
     protected function notifyUserAboutError(array $update): void
     {
         try {
@@ -82,12 +75,11 @@ class MessageHandler
             if ($chatId) {
                 $this->bot->sendMessage(
                     $chatId,
-                    "⚠️ Xatolik yuz berdi. Iltimos, keyinroq qayta urinib ko'ring.\n\n" .
-                    "⚠️ An error occurred. Please try again later."
+                    "⚠️ Xatolik yuz berdi. Iltimos, keyinroq qayta urinib ko'ring."
                 );
             }
         } catch (\Exception $e) {
-            Log::channel('telegram')->warning('Failed to notify user about error', [
+            Log::warning('Foydalanuvchini xatolik haqida xabardor qilishda muammo', [
                 'error' => $e->getMessage(),
             ]);
         }
@@ -105,13 +97,13 @@ class MessageHandler
 
         $user->updateStreak();
 
-        // Handle voice messages
+        // Ovozli xabarlarni qayta ishlash
         if (isset($message['voice'])) {
             $this->handleVoiceMessage($user, $message);
             return;
         }
 
-        // Handle documents/media
+        // Hujjat/media qayta ishlash
         if (isset($message['document']) || isset($message['photo'])) {
             $this->handleMediaMessage($user, $message);
             return;
@@ -119,19 +111,19 @@ class MessageHandler
 
         $text = $message['text'] ?? '';
 
-        // Handle commands
+        // Buyruqlarni qayta ishlash
         if (str_starts_with($text, '/')) {
             $this->handleCommand($user, $text);
             return;
         }
 
-        // Handle user state (if in a conversation flow)
+        // Foydalanuvchi holatini qayta ishlash
         if ($user->current_state) {
             $this->stateHandler->handle($user, $text, $message);
             return;
         }
 
-        // Handle menu buttons
+        // Menyu tugmalarini qayta ishlash
         $this->handleMenuButton($user, $text);
     }
 
@@ -143,21 +135,21 @@ class MessageHandler
 
         match ($cmd) {
             '/start' => $this->commandStart($user),
-            '/help' => $this->commandHelp($user),
-            '/today' => $this->taskHandler->showTodayTasks($user),
-            '/week' => $this->taskHandler->showWeekTasks($user),
-            '/month' => $this->taskHandler->showMonthTasks($user),
-            '/year' => $this->taskHandler->showYearTasks($user),
-            '/balance' => $this->financeHandler->showBalance($user),
-            '/debts' => $this->debtHandler->showActiveDebts($user),
-            '/addtask' => $this->taskHandler->startAddTask($user),
-            '/income' => $this->financeHandler->startAddIncome($user),
-            '/expense' => $this->financeHandler->startAddExpense($user),
-            '/stats' => $this->financeHandler->showStatistics($user),
-            '/export' => $this->settingsHandler->exportData($user),
-            '/settings' => $this->settingsHandler->showSettings($user),
+            '/help', '/yordam' => $this->commandHelp($user),
+            '/today', '/bugun' => $this->taskHandler->showTodayTasks($user),
+            '/week', '/hafta' => $this->taskHandler->showWeekTasks($user),
+            '/month', '/oy' => $this->taskHandler->showMonthTasks($user),
+            '/year', '/yil' => $this->taskHandler->showYearTasks($user),
+            '/balance', '/balans' => $this->financeHandler->showBalance($user),
+            '/debts', '/qarzlar' => $this->debtHandler->showActiveDebts($user),
+            '/addtask', '/vazifa' => $this->taskHandler->startAddTask($user),
+            '/income', '/daromad' => $this->financeHandler->startAddIncome($user),
+            '/expense', '/xarajat' => $this->financeHandler->startAddExpense($user),
+            '/stats', '/statistika' => $this->financeHandler->showStatistics($user),
+            '/export', '/eksport' => $this->settingsHandler->exportData($user),
+            '/settings', '/sozlamalar' => $this->settingsHandler->showSettings($user),
             '/ai' => $this->aiHandler->startChat($user, implode(' ', $args)),
-            '/cancel' => $this->cancelCurrentAction($user),
+            '/cancel', '/bekor' => $this->cancelCurrentAction($user),
             default => $this->commandUnknown($user),
         };
     }
@@ -165,56 +157,56 @@ class MessageHandler
     protected function handleMenuButton(TelegramUser $user, string $text): void
     {
         match ($text) {
-            // Main menu
-            '📋 Tasks' => $this->showTasksMenu($user),
-            '💰 Finance' => $this->showFinanceMenu($user),
-            '📅 Calendar' => $this->showCalendarMenu($user),
-            '💳 Debts' => $this->showDebtsMenu($user),
-            '📊 Statistics' => $this->financeHandler->showStatistics($user),
-            '🤖 AI Assistant' => $this->aiHandler->showAIMenu($user),
-            '⚙️ Settings' => $this->settingsHandler->showSettings($user),
+            // Asosiy menyu
+            '📋 Vazifalar' => $this->showTasksMenu($user),
+            '💰 Moliya' => $this->showFinanceMenu($user),
+            '📅 Taqvim' => $this->showCalendarMenu($user),
+            '💳 Qarzlar' => $this->showDebtsMenu($user),
+            '📊 Statistika' => $this->financeHandler->showStatistics($user),
+            '🤖 AI Yordamchi' => $this->aiHandler->showAIMenu($user),
+            '⚙️ Sozlamalar' => $this->settingsHandler->showSettings($user),
 
-            // Tasks menu
-            '➕ Add Task' => $this->taskHandler->startAddTask($user),
-            '📋 Today\'s Tasks' => $this->taskHandler->showTodayTasks($user),
-            '📅 Week Tasks' => $this->taskHandler->showWeekTasks($user),
-            '📆 Month Tasks' => $this->taskHandler->showMonthTasks($user),
-            '🌅 Morning Plan' => $this->taskHandler->showMorningPlan($user),
-            '🌙 Evening Summary' => $this->taskHandler->showEveningSummary($user),
+            // Vazifalar menyusi
+            '➕ Vazifa qo\'shish' => $this->taskHandler->startAddTask($user),
+            '📋 Bugungi vazifalar' => $this->taskHandler->showTodayTasks($user),
+            '📅 Haftalik' => $this->taskHandler->showWeekTasks($user),
+            '📆 Oylik' => $this->taskHandler->showMonthTasks($user),
+            '🌅 Ertalabki reja' => $this->taskHandler->showMorningPlan($user),
+            '🌙 Kechki xulosa' => $this->taskHandler->showEveningSummary($user),
 
-            // Finance menu
-            '💵 Add Income' => $this->financeHandler->startAddIncome($user),
-            '💸 Add Expense' => $this->financeHandler->startAddExpense($user),
-            '📊 Today Report' => $this->financeHandler->showTodayReport($user),
-            '📈 Month Report' => $this->financeHandler->showMonthReport($user),
-            '💱 Currency Rates' => $this->financeHandler->showCurrencyRates($user),
-            '📉 Analysis' => $this->financeHandler->showAnalysis($user),
+            // Moliya menyusi
+            '💵 Daromad qo\'shish' => $this->financeHandler->startAddIncome($user),
+            '💸 Xarajat qo\'shish' => $this->financeHandler->startAddExpense($user),
+            '📊 Bugungi hisobot' => $this->financeHandler->showTodayReport($user),
+            '📈 Oylik hisobot' => $this->financeHandler->showMonthReport($user),
+            '💱 Valyuta kursi' => $this->financeHandler->showCurrencyRates($user),
+            '📉 Tahlil' => $this->financeHandler->showAnalysis($user),
 
-            // Debts menu
-            '📤 I Gave Debt' => $this->debtHandler->startAddGivenDebt($user),
-            '📥 I Received Debt' => $this->debtHandler->startAddReceivedDebt($user),
-            '📋 Active Debts' => $this->debtHandler->showActiveDebts($user),
-            '⏰ Due Soon' => $this->debtHandler->showDueSoon($user),
-            '✅ Paid Debts' => $this->debtHandler->showPaidDebts($user),
-            '📊 Debt Summary' => $this->debtHandler->showDebtSummary($user),
+            // Qarzlar menyusi
+            '📤 Qarz berdim' => $this->debtHandler->startAddGivenDebt($user),
+            '📥 Qarz oldim' => $this->debtHandler->startAddReceivedDebt($user),
+            '📋 Faol qarzlar' => $this->debtHandler->showActiveDebts($user),
+            '⏰ Muddati yaqin' => $this->debtHandler->showDueSoon($user),
+            '✅ To\'langan' => $this->debtHandler->showPaidDebts($user),
+            '📊 Qarz xulosasi' => $this->debtHandler->showDebtSummary($user),
 
-            // Calendar menu
-            '📅 Today' => $this->calendarHandler->showToday($user),
-            '📆 This Week' => $this->calendarHandler->showWeek($user),
-            '🗓️ This Month' => $this->calendarHandler->showMonth($user),
-            '📊 This Year' => $this->calendarHandler->showYear($user),
-            '🔍 Custom Range' => $this->calendarHandler->startCustomRange($user),
+            // Taqvim menyusi
+            '📅 Bugun' => $this->calendarHandler->showToday($user),
+            '📆 Shu hafta' => $this->calendarHandler->showWeek($user),
+            '🗓️ Shu oy' => $this->calendarHandler->showMonth($user),
+            '📊 Shu yil' => $this->calendarHandler->showYear($user),
+            '🔍 Maxsus oraliq' => $this->calendarHandler->startCustomRange($user),
 
-            // Settings menu
-            '🔔 Notifications' => $this->settingsHandler->showNotificationSettings($user),
-            '💱 Currency' => $this->settingsHandler->showCurrencySettings($user),
-            '🌐 Language' => $this->settingsHandler->showLanguageSettings($user),
-            '⏰ Time Zone' => $this->settingsHandler->showTimezoneSettings($user),
-            '📤 Export Data' => $this->settingsHandler->exportData($user),
-            '📥 Import Data' => $this->settingsHandler->startImport($user),
+            // Sozlamalar menyusi
+            '🔔 Bildirishnomalar' => $this->settingsHandler->showNotificationSettings($user),
+            '💱 Valyuta' => $this->settingsHandler->showCurrencySettings($user),
+            '🌐 Til' => $this->settingsHandler->showLanguageSettings($user),
+            '⏰ Vaqt zonasi' => $this->settingsHandler->showTimezoneSettings($user),
+            '📤 Eksport' => $this->settingsHandler->exportData($user),
+            '📥 Import' => $this->settingsHandler->startImport($user),
 
-            // Back button
-            '🔙 Back to Menu' => $this->commandStart($user),
+            // Orqaga tugmasi
+            '🔙 Orqaga' => $this->commandStart($user),
 
             default => $this->handleUnknownText($user, $text),
         };
@@ -231,7 +223,7 @@ class MessageHandler
         [$action, $value] = array_pad(explode(':', $data, 2), 2, null);
 
         match ($action) {
-            // Task callbacks
+            // Vazifa callback'lari
             'task_done' => $this->taskHandler->markTaskDone($user, $value, $messageId),
             'task_view' => $this->taskHandler->viewTask($user, $value, $messageId),
             'task_edit' => $this->taskHandler->editTask($user, $value, $messageId),
@@ -241,35 +233,35 @@ class MessageHandler
             'task_category' => $this->taskHandler->setTaskCategory($user, $value, $messageId),
             'task_confirm' => $this->taskHandler->confirmTask($user, $value, $messageId),
 
-            // Finance callbacks
+            // Moliya callback'lari
             'tx_category' => $this->financeHandler->setCategory($user, $value, $messageId),
             'tx_confirm' => $this->financeHandler->confirmTransaction($user, $value, $messageId),
             'tx_delete' => $this->financeHandler->deleteTransaction($user, $value, $messageId),
 
-            // Debt callbacks
+            // Qarz callback'lari
             'debt_pay' => $this->debtHandler->markDebtPaid($user, $value, $messageId),
             'debt_partial' => $this->debtHandler->startPartialPayment($user, $value, $messageId),
             'debt_view' => $this->debtHandler->viewDebt($user, $value, $messageId),
             'debt_delete' => $this->debtHandler->deleteDebt($user, $value, $messageId),
             'debt_confirm' => $this->debtHandler->confirmDebt($user, $value, $messageId),
 
-            // Settings callbacks
+            // Sozlamalar callback'lari
             'set_currency' => $this->settingsHandler->setCurrency($user, $value, $messageId),
             'set_language' => $this->settingsHandler->setLanguage($user, $value, $messageId),
             'set_timezone' => $this->settingsHandler->setTimezone($user, $value, $messageId),
             'toggle_notif' => $this->settingsHandler->toggleNotification($user, $value, $messageId),
 
-            // Calendar callbacks
+            // Taqvim callback'lari
             'cal_day' => $this->calendarHandler->showDay($user, $value, $messageId),
             'cal_nav' => $this->calendarHandler->navigate($user, $value, $messageId),
 
-            // Rating callbacks
+            // Reyting callback'lari
             'rating' => $this->taskHandler->submitRating($user, $value, $messageId),
 
-            // Confirmation callbacks
+            // Tasdiqlash callback'lari
             'confirm_yes', 'confirm_no' => $this->stateHandler->handleConfirmation($user, $action, $messageId),
 
-            // Pagination
+            // Sahifalash
             'page' => $this->handlePagination($user, $value, $messageId),
 
             default => null,
@@ -281,23 +273,19 @@ class MessageHandler
         $voice = $message['voice'];
         $this->bot->sendChatAction($user->telegram_id, 'typing');
 
-        // Send processing message
-        $this->bot->sendMessage($user->telegram_id, '🎤 Processing voice message...');
+        $this->bot->sendMessage($user->telegram_id, '🎤 Ovozli xabar qabul qilindi!');
 
-        // TODO: Implement voice transcription using Whisper API or similar
-        // For now, just acknowledge receipt
         $this->bot->sendMessage(
             $user->telegram_id,
-            "🎤 Voice message received!\n\n" .
-            "Duration: {$voice['duration']} seconds\n\n" .
-            "Voice transcription feature coming soon. " .
-            "Please type your message for now."
+            "🎤 Ovozli xabar qabul qilindi!\n\n" .
+            "Davomiyligi: {$voice['duration']} soniya\n\n" .
+            "Ovozni matnga aylantirish funksiyasi tez orada qo'shiladi. " .
+            "Hozircha xabaringizni yozma shaklda yuboring."
         );
     }
 
     protected function handleMediaMessage(TelegramUser $user, array $message): void
     {
-        // Handle based on current state
         if ($user->current_state) {
             $this->stateHandler->handleMedia($user, $message);
             return;
@@ -305,20 +293,20 @@ class MessageHandler
 
         $this->bot->sendMessage(
             $user->telegram_id,
-            "📎 File received! To attach it to a task or transaction, " .
-            "please first create or select an item, then send the file."
+            "📎 Fayl qabul qilindi! Uni vazifa yoki tranzaksiyaga biriktirish uchun " .
+            "avval element yarating yoki tanlang, keyin faylni yuboring."
         );
     }
 
     protected function handleUnknownText(TelegramUser $user, string $text): void
     {
-        // Check if it looks like a quick expense entry (e.g., "50 food lunch")
+        // Tez xarajat kiritish tekshiruvi (masalan, "50000 ovqat tushlik")
         if (preg_match('/^(\d+(?:\.\d{2})?)\s+(.+)$/i', $text, $matches)) {
             $this->financeHandler->quickExpense($user, (float)$matches[1], $matches[2]);
             return;
         }
 
-        // Send to AI for analysis
+        // AI tahlil uchun yuborish
         $this->aiHandler->analyzeMessage($user, $text);
     }
 
@@ -339,9 +327,9 @@ class MessageHandler
         $name = $user->getDisplayName();
         $badge = $user->getBadgeInfo();
 
-        $message = "👋 Welcome back, <b>{$name}</b>!\n\n" .
-            "{$badge['name']} | 🎯 {$user->total_points} points | 🔥 {$user->streak_days} day streak\n\n" .
-            "What would you like to do today?";
+        $message = "👋 Xush kelibsiz, <b>{$name}</b>!\n\n" .
+            "{$badge['name']} | 🎯 {$user->total_points} ball | 🔥 {$user->streak_days} kunlik seriya\n\n" .
+            "Bugun nima qilmoqchisiz?";
 
         $this->bot->sendMessageWithKeyboard(
             $user->telegram_id,
@@ -352,26 +340,26 @@ class MessageHandler
 
     protected function commandHelp(TelegramUser $user): void
     {
-        $helpText = "📚 <b>Available Commands</b>\n\n" .
-            "<b>Shortcuts:</b>\n" .
-            "/today - Today's tasks\n" .
-            "/week - This week's tasks\n" .
-            "/month - This month's tasks\n" .
-            "/year - This year's overview\n" .
-            "/balance - Current balance\n" .
-            "/debts - Active debts\n\n" .
-            "<b>Quick Actions:</b>\n" .
-            "/addtask - Add a new task\n" .
-            "/income - Add income\n" .
-            "/expense - Add expense\n" .
-            "/stats - View statistics\n" .
-            "/export - Export your data\n\n" .
-            "<b>Other:</b>\n" .
-            "/ai [question] - Ask AI assistant\n" .
-            "/settings - Bot settings\n" .
-            "/cancel - Cancel current action\n\n" .
-            "💡 <b>Tip:</b> You can quickly add expenses by typing:\n" .
-            "<code>50 food lunch at cafe</code>";
+        $helpText = "📚 <b>Mavjud buyruqlar</b>\n\n" .
+            "<b>Tezkor buyruqlar:</b>\n" .
+            "/bugun - Bugungi vazifalar\n" .
+            "/hafta - Shu hafta vazifalari\n" .
+            "/oy - Shu oy vazifalari\n" .
+            "/yil - Yillik ko'rinish\n" .
+            "/balans - Joriy balans\n" .
+            "/qarzlar - Faol qarzlar\n\n" .
+            "<b>Tezkor harakatlar:</b>\n" .
+            "/vazifa - Yangi vazifa qo'shish\n" .
+            "/daromad - Daromad qo'shish\n" .
+            "/xarajat - Xarajat qo'shish\n" .
+            "/statistika - Statistikani ko'rish\n" .
+            "/eksport - Ma'lumotlarni eksport qilish\n\n" .
+            "<b>Boshqa:</b>\n" .
+            "/ai [savol] - AI yordamchi\n" .
+            "/sozlamalar - Bot sozlamalari\n" .
+            "/bekor - Joriy amalni bekor qilish\n\n" .
+            "💡 <b>Maslahat:</b> Tez xarajat qo'shish uchun:\n" .
+            "<code>50000 ovqat tushlik</code>";
 
         $this->bot->sendMessage($user->telegram_id, $helpText);
     }
@@ -380,14 +368,14 @@ class MessageHandler
     {
         $this->bot->sendMessage(
             $user->telegram_id,
-            "❓ Unknown command. Type /help to see available commands."
+            "❓ Noma'lum buyruq. Mavjud buyruqlarni ko'rish uchun /yordam yozing."
         );
     }
 
     protected function cancelCurrentAction(TelegramUser $user): void
     {
         $user->clearState();
-        $this->bot->sendMessage($user->telegram_id, "❌ Action cancelled.");
+        $this->bot->sendMessage($user->telegram_id, "❌ Amal bekor qilindi.");
         $this->commandStart($user);
     }
 
@@ -397,10 +385,10 @@ class MessageHandler
         $overdueCount = $user->tasks()->pending()
             ->whereDate('date', '<', today())->count();
 
-        $message = "📋 <b>Tasks Menu</b>\n\n" .
-            "📅 Today: {$todayCount} pending tasks\n" .
-            ($overdueCount > 0 ? "⚠️ Overdue: {$overdueCount} tasks\n" : "") .
-            "\nWhat would you like to do?";
+        $message = "📋 <b>Vazifalar</b>\n\n" .
+            "📅 Bugun: {$todayCount} ta kutilayotgan vazifa\n" .
+            ($overdueCount > 0 ? "⚠️ Muddati o'tgan: {$overdueCount} ta vazifa\n" : "") .
+            "\nNima qilmoqchisiz?";
 
         $this->bot->sendMessageWithKeyboard(
             $user->telegram_id,
@@ -415,15 +403,11 @@ class MessageHandler
         $todayExpenses = $user->getTodayExpenses();
         $monthExpenses = $user->getMonthExpenses();
 
-        $balanceFormatted = number_format($balance, 2);
-        $todayFormatted = number_format($todayExpenses, 2);
-        $monthFormatted = number_format($monthExpenses, 2);
-
-        $message = "💰 <b>Finance Menu</b>\n\n" .
-            "💵 Balance: \${$balanceFormatted}\n" .
-            "📅 Today's expenses: \${$todayFormatted}\n" .
-            "📆 Month expenses: \${$monthFormatted}\n" .
-            "\nWhat would you like to do?";
+        $message = "💰 <b>Moliya</b>\n\n" .
+            "💵 Balans: " . number_format($balance, 0, '.', ' ') . " so'm\n" .
+            "📅 Bugungi xarajat: " . number_format($todayExpenses, 0, '.', ' ') . " so'm\n" .
+            "📆 Oylik xarajat: " . number_format($monthExpenses, 0, '.', ' ') . " so'm\n" .
+            "\nNima qilmoqchisiz?";
 
         $this->bot->sendMessageWithKeyboard(
             $user->telegram_id,
@@ -438,11 +422,11 @@ class MessageHandler
         $receivedTotal = $user->getActiveDebtsTotal('received');
         $overdueCount = $user->debts()->overdue()->count();
 
-        $message = "💳 <b>Debts Menu</b>\n\n" .
-            "📤 Money I gave: \$" . number_format($givenTotal, 2) . "\n" .
-            "📥 Money I owe: \$" . number_format($receivedTotal, 2) . "\n" .
-            ($overdueCount > 0 ? "⚠️ Overdue: {$overdueCount} debts\n" : "") .
-            "\nWhat would you like to do?";
+        $message = "💳 <b>Qarzlar</b>\n\n" .
+            "📤 Men bergan qarz: " . number_format($givenTotal, 0, '.', ' ') . " so'm\n" .
+            "📥 Men olgan qarz: " . number_format($receivedTotal, 0, '.', ' ') . " so'm\n" .
+            ($overdueCount > 0 ? "⚠️ Muddati o'tgan: {$overdueCount} ta qarz\n" : "") .
+            "\nNima qilmoqchisiz?";
 
         $this->bot->sendMessageWithKeyboard(
             $user->telegram_id,
@@ -453,9 +437,9 @@ class MessageHandler
 
     protected function showCalendarMenu(TelegramUser $user): void
     {
-        $message = "📅 <b>Calendar</b>\n\n" .
-            "View your tasks, expenses, and debts in calendar format.\n\n" .
-            "Choose a view:";
+        $message = "📅 <b>Taqvim</b>\n\n" .
+            "Vazifalar, xarajatlar va qarzlarni taqvim ko'rinishida ko'ring.\n\n" .
+            "Ko'rinishni tanlang:";
 
         $this->bot->sendMessageWithKeyboard(
             $user->telegram_id,
@@ -464,4 +448,3 @@ class MessageHandler
         );
     }
 }
-

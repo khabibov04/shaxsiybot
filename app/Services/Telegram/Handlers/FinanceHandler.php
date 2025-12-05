@@ -23,9 +23,9 @@ class FinanceHandler
         
         $this->bot->sendMessage(
             $user->telegram_id,
-            "💵 <b>Add Income</b>\n\n" .
-            "Enter the amount:\n\n" .
-            "💡 Example: <code>1500</code> or <code>1500.50</code>"
+            "💵 <b>Daromad qo'shish</b>\n\n" .
+            "Summani kiriting:\n\n" .
+            "💡 Misol: <code>1500000</code> yoki <code>1500000.50</code>"
         );
     }
 
@@ -35,9 +35,9 @@ class FinanceHandler
         
         $this->bot->sendMessage(
             $user->telegram_id,
-            "💸 <b>Add Expense</b>\n\n" .
-            "Enter the amount:\n\n" .
-            "💡 Example: <code>50</code> or <code>50.99</code>"
+            "💸 <b>Xarajat qo'shish</b>\n\n" .
+            "Summani kiriting:\n\n" .
+            "💡 Misol: <code>50000</code> yoki <code>50000.99</code>"
         );
     }
 
@@ -60,14 +60,14 @@ class FinanceHandler
         $this->checkBudgetAlerts($user);
 
         $categories = config('telegram.expense_categories');
-        $categoryLabel = $categories[$transaction->category] ?? '📋 Other';
+        $categoryLabel = $categories[$transaction->category] ?? '📋 Boshqa';
 
-        $message = "💸 <b>Expense Added!</b>\n\n" .
-            "💰 Amount: {$transaction->getFormattedAmount()}\n" .
-            "📁 Category: {$categoryLabel}\n" .
-            "📝 Note: {$note}\n" .
-            "📅 Date: Today\n\n" .
-            "💡 Category was auto-assigned. Tap to change:";
+        $message = "💸 <b>Xarajat qo'shildi!</b>\n\n" .
+            "💰 Summa: " . number_format($amount, 0, '.', ' ') . " so'm\n" .
+            "📁 Kategoriya: {$categoryLabel}\n" .
+            "📝 Izoh: {$note}\n" .
+            "📅 Sana: Bugun\n\n" .
+            "💡 Kategoriya avtomatik tanlandi. O'zgartirish uchun bosing:";
 
         $keyboard = $this->bot->buildCategoryInlineKeyboard(
             config('telegram.expense_categories'),
@@ -89,31 +89,23 @@ class FinanceHandler
         $monthIncome = $user->transactions()->income()->forMonth()->sum('amount');
         $monthExpense = $user->transactions()->expense()->forMonth()->sum('amount');
 
-        $currency = $user->currency;
-        $symbol = match($currency) {
-            'USD' => '$',
-            'EUR' => '€',
-            'RUB' => '₽',
-            default => $currency,
-        };
-
-        $message = "💰 <b>Balance Overview</b>\n\n";
+        $message = "💰 <b>Balans</b>\n\n";
         
         $balanceEmoji = $balance >= 0 ? '💚' : '❤️';
-        $message .= "{$balanceEmoji} <b>Current Balance: {$symbol}" . number_format($balance, 2) . "</b>\n\n";
+        $message .= "{$balanceEmoji} <b>Joriy balans: " . number_format($balance, 0, '.', ' ') . " so'm</b>\n\n";
 
-        $message .= "📅 <b>Today:</b>\n";
-        $message .= "   💵 Income: {$symbol}" . number_format($todayIncome, 2) . "\n";
-        $message .= "   💸 Expense: {$symbol}" . number_format($todayExpense, 2) . "\n\n";
+        $message .= "📅 <b>Bugun:</b>\n";
+        $message .= "   💵 Daromad: " . number_format($todayIncome, 0, '.', ' ') . " so'm\n";
+        $message .= "   💸 Xarajat: " . number_format($todayExpense, 0, '.', ' ') . " so'm\n\n";
 
-        $message .= "📆 <b>This Month:</b>\n";
-        $message .= "   💵 Income: {$symbol}" . number_format($monthIncome, 2) . "\n";
-        $message .= "   💸 Expense: {$symbol}" . number_format($monthExpense, 2) . "\n";
-        $message .= "   📊 Net: {$symbol}" . number_format($monthIncome - $monthExpense, 2) . "\n\n";
+        $message .= "📆 <b>Shu oy:</b>\n";
+        $message .= "   💵 Daromad: " . number_format($monthIncome, 0, '.', ' ') . " so'm\n";
+        $message .= "   💸 Xarajat: " . number_format($monthExpense, 0, '.', ' ') . " so'm\n";
+        $message .= "   📊 Farq: " . number_format($monthIncome - $monthExpense, 0, '.', ' ') . " so'm\n\n";
 
-        $message .= "📊 <b>All Time:</b>\n";
-        $message .= "   💵 Total Income: {$symbol}" . number_format($totalIncome, 2) . "\n";
-        $message .= "   💸 Total Expense: {$symbol}" . number_format($totalExpense, 2);
+        $message .= "📊 <b>Umumiy:</b>\n";
+        $message .= "   💵 Jami daromad: " . number_format($totalIncome, 0, '.', ' ') . " so'm\n";
+        $message .= "   💸 Jami xarajat: " . number_format($totalExpense, 0, '.', ' ') . " so'm";
 
         $this->bot->sendMessage($user->telegram_id, $message);
     }
@@ -125,21 +117,21 @@ class FinanceHandler
         $income = $transactions->where('type', 'income')->sum('amount');
         $expense = $transactions->where('type', 'expense')->sum('amount');
 
-        $message = "📊 <b>Today's Report</b>\n";
-        $message .= "📅 " . now()->format('l, F j, Y') . "\n\n";
+        $message = "📊 <b>Bugungi hisobot</b>\n";
+        $message .= "📅 " . now()->format('d.m.Y, l') . "\n\n";
 
-        $message .= "💵 Income: \$" . number_format($income, 2) . "\n";
-        $message .= "💸 Expense: \$" . number_format($expense, 2) . "\n";
-        $message .= "📊 Net: \$" . number_format($income - $expense, 2) . "\n\n";
+        $message .= "💵 Daromad: " . number_format($income, 0, '.', ' ') . " so'm\n";
+        $message .= "💸 Xarajat: " . number_format($expense, 0, '.', ' ') . " so'm\n";
+        $message .= "📊 Farq: " . number_format($income - $expense, 0, '.', ' ') . " so'm\n\n";
 
         if ($transactions->isEmpty()) {
-            $message .= "No transactions today.";
+            $message .= "Bugun tranzaksiyalar yo'q.";
         } else {
-            $message .= "<b>Transactions:</b>\n";
+            $message .= "<b>Tranzaksiyalar:</b>\n";
             foreach ($transactions as $tx) {
                 $emoji = $tx->type === 'income' ? '💵' : '💸';
                 $sign = $tx->type === 'income' ? '+' : '-';
-                $message .= "{$emoji} {$sign}\${$tx->amount} - {$tx->note}\n";
+                $message .= "{$emoji} {$sign}" . number_format($tx->amount, 0, '.', ' ') . " - {$tx->note}\n";
             }
         }
 
@@ -153,37 +145,35 @@ class FinanceHandler
         $income = $transactions->where('type', 'income')->sum('amount');
         $expense = $transactions->where('type', 'expense')->sum('amount');
 
-        // Group expenses by category
         $expensesByCategory = $transactions
             ->where('type', 'expense')
             ->groupBy('category')
             ->map(fn($items) => $items->sum('amount'))
             ->sortDesc();
 
-        $message = "📊 <b>Monthly Report</b>\n";
+        $message = "📊 <b>Oylik hisobot</b>\n";
         $message .= "📆 " . now()->format('F Y') . "\n\n";
 
-        $message .= "💵 Income: \$" . number_format($income, 2) . "\n";
-        $message .= "💸 Expense: \$" . number_format($expense, 2) . "\n";
-        $message .= "📊 Net: \$" . number_format($income - $expense, 2) . "\n\n";
+        $message .= "💵 Daromad: " . number_format($income, 0, '.', ' ') . " so'm\n";
+        $message .= "💸 Xarajat: " . number_format($expense, 0, '.', ' ') . " so'm\n";
+        $message .= "📊 Farq: " . number_format($income - $expense, 0, '.', ' ') . " so'm\n\n";
 
         if ($expensesByCategory->isNotEmpty()) {
-            $message .= "<b>Expenses by Category:</b>\n";
+            $message .= "<b>Kategoriya bo'yicha xarajatlar:</b>\n";
             $categories = config('telegram.expense_categories');
             
             foreach ($expensesByCategory as $category => $amount) {
-                $label = $categories[$category] ?? '📋 Other';
+                $label = $categories[$category] ?? '📋 Boshqa';
                 $percentage = $expense > 0 ? round(($amount / $expense) * 100) : 0;
                 $bar = $this->createProgressBar($percentage);
                 $message .= "{$label}\n";
-                $message .= "   {$bar} \${$amount} ({$percentage}%)\n";
+                $message .= "   {$bar} " . number_format($amount, 0, '.', ' ') . " ({$percentage}%)\n";
             }
         }
 
-        // Budget alerts
         if ($user->monthly_budget_limit && $expense > $user->monthly_budget_limit) {
             $over = $expense - $user->monthly_budget_limit;
-            $message .= "\n⚠️ <b>Over budget by \$" . number_format($over, 2) . "!</b>";
+            $message .= "\n⚠️ <b>Byudjetdan " . number_format($over, 0, '.', ' ') . " so'm oshib ketdi!</b>";
         }
 
         $this->bot->sendMessage($user->telegram_id, $message);
@@ -191,49 +181,45 @@ class FinanceHandler
 
     public function showStatistics(TelegramUser $user): void
     {
-        $message = "📊 <b>Statistics & Analysis</b>\n\n";
+        $message = "📊 <b>Statistika va tahlil</b>\n\n";
 
-        // Task stats
         $totalTasks = $user->tasks()->count();
         $completedTasks = $user->tasks()->completed()->count();
         $taskCompletion = $totalTasks > 0 ? round(($completedTasks / $totalTasks) * 100) : 0;
 
-        $message .= "<b>📋 Tasks:</b>\n";
-        $message .= "   Total: {$totalTasks}\n";
-        $message .= "   Completed: {$completedTasks} ({$taskCompletion}%)\n";
+        $message .= "<b>📋 Vazifalar:</b>\n";
+        $message .= "   Jami: {$totalTasks}\n";
+        $message .= "   Bajarilgan: {$completedTasks} ({$taskCompletion}%)\n";
         $message .= "   {$this->createProgressBar($taskCompletion)}\n\n";
 
-        // Finance stats
         $totalIncome = $user->transactions()->income()->sum('amount');
         $totalExpense = $user->transactions()->expense()->sum('amount');
         $savingsRate = $totalIncome > 0 ? round((($totalIncome - $totalExpense) / $totalIncome) * 100) : 0;
 
-        $message .= "<b>💰 Finance:</b>\n";
-        $message .= "   Total Income: \$" . number_format($totalIncome, 2) . "\n";
-        $message .= "   Total Expense: \$" . number_format($totalExpense, 2) . "\n";
-        $message .= "   Savings Rate: {$savingsRate}%\n";
+        $message .= "<b>💰 Moliya:</b>\n";
+        $message .= "   Jami daromad: " . number_format($totalIncome, 0, '.', ' ') . " so'm\n";
+        $message .= "   Jami xarajat: " . number_format($totalExpense, 0, '.', ' ') . " so'm\n";
+        $message .= "   Tejash darajasi: {$savingsRate}%\n";
         $message .= "   {$this->createProgressBar(max(0, $savingsRate))}\n\n";
 
-        // Gamification stats
         $badge = $user->getBadgeInfo();
-        $message .= "<b>🎮 Progress:</b>\n";
-        $message .= "   Badge: {$badge['name']}\n";
-        $message .= "   Points: {$user->total_points}\n";
-        $message .= "   Streak: {$user->streak_days} days 🔥\n";
-        $message .= "   Tasks Done: {$user->tasks_completed}\n\n";
+        $message .= "<b>🎮 O'yin ko'rsatkichlari:</b>\n";
+        $message .= "   Nishon: {$badge['name']}\n";
+        $message .= "   Ball: {$user->total_points}\n";
+        $message .= "   Seriya: {$user->streak_days} kun 🔥\n";
+        $message .= "   Bajarilgan vazifalar: {$user->tasks_completed}\n\n";
 
-        // Achievements
         $achievements = $user->achievements()->count();
         $totalAchievements = count(\App\Models\UserAchievement::getAvailableAchievements());
-        $message .= "<b>🏆 Achievements:</b> {$achievements}/{$totalAchievements}";
+        $message .= "<b>🏆 Yutuqlar:</b> {$achievements}/{$totalAchievements}";
 
         $keyboard = [
             [
-                ['text' => '📈 Detailed Charts', 'callback_data' => 'stats_charts'],
-                ['text' => '🏆 Achievements', 'callback_data' => 'stats_achievements'],
+                ['text' => '📈 Batafsil grafiklar', 'callback_data' => 'stats_charts'],
+                ['text' => '🏆 Yutuqlar', 'callback_data' => 'stats_achievements'],
             ],
             [
-                ['text' => '📊 Financial Forecast', 'callback_data' => 'stats_forecast'],
+                ['text' => '📊 Moliyaviy prognoz', 'callback_data' => 'stats_forecast'],
             ],
         ];
 
@@ -244,21 +230,19 @@ class FinanceHandler
     {
         $this->bot->sendChatAction($user->telegram_id, 'typing');
 
-        // Try to fetch fresh rates
         $rates = $this->fetchCurrencyRates();
 
-        $message = "💱 <b>Currency Rates</b>\n";
-        $message .= "📅 " . now()->format('M j, Y H:i') . "\n\n";
+        $message = "💱 <b>Valyuta kurslari</b>\n";
+        $message .= "📅 " . now()->format('d.m.Y H:i') . "\n\n";
 
         if ($rates) {
             $message .= "🇺🇸 1 USD = \n";
+            $message .= "   🇺🇿 " . number_format($rates['UZS'] ?? 12500, 0, '.', ' ') . " so'm\n";
             $message .= "   🇪🇺 " . number_format($rates['EUR'] ?? 0, 4) . " EUR\n";
             $message .= "   🇷🇺 " . number_format($rates['RUB'] ?? 0, 2) . " RUB\n";
-            $message .= "   🇺🇿 " . number_format($rates['UZS'] ?? 0, 2) . " UZS\n";
         } else {
-            // Fallback to stored rates
-            $message .= "Unable to fetch live rates.\n";
-            $message .= "Using cached rates (may be outdated).";
+            $message .= "Kurslarni olishda xatolik.\n";
+            $message .= "Keshlanган kurslar ishlatilmoqda.";
         }
 
         $this->bot->sendMessage($user->telegram_id, $message);
@@ -266,9 +250,8 @@ class FinanceHandler
 
     public function showAnalysis(TelegramUser $user): void
     {
-        $message = "📉 <b>Financial Analysis</b>\n\n";
+        $message = "📉 <b>Moliyaviy tahlil</b>\n\n";
 
-        // Spending trends
         $lastMonth = now()->subMonth();
         $lastMonthExpense = $user->transactions()
             ->expense()
@@ -285,12 +268,11 @@ class FinanceHandler
         $changeEmoji = $change > 0 ? '📈' : ($change < 0 ? '📉' : '➡️');
         $changeText = $change > 0 ? "+{$change}%" : "{$change}%";
 
-        $message .= "<b>📊 Spending Trend:</b>\n";
-        $message .= "Last month: \$" . number_format($lastMonthExpense, 2) . "\n";
-        $message .= "This month: \$" . number_format($thisMonthExpense, 2) . "\n";
-        $message .= "Change: {$changeEmoji} {$changeText}\n\n";
+        $message .= "<b>📊 Xarajat tendensiyasi:</b>\n";
+        $message .= "O'tgan oy: " . number_format($lastMonthExpense, 0, '.', ' ') . " so'm\n";
+        $message .= "Shu oy: " . number_format($thisMonthExpense, 0, '.', ' ') . " so'm\n";
+        $message .= "O'zgarish: {$changeEmoji} {$changeText}\n\n";
 
-        // Top spending categories this month
         $topCategories = $user->transactions()
             ->expense()
             ->forMonth()
@@ -301,17 +283,16 @@ class FinanceHandler
             ->get();
 
         if ($topCategories->isNotEmpty()) {
-            $message .= "<b>🏆 Top Spending Categories:</b>\n";
+            $message .= "<b>🏆 Eng ko'p xarajat kategoriyalari:</b>\n";
             $categories = config('telegram.expense_categories');
             foreach ($topCategories as $i => $cat) {
                 $rank = ['🥇', '🥈', '🥉'][$i];
-                $label = $categories[$cat->category] ?? '📋 Other';
-                $message .= "{$rank} {$label}: \$" . number_format($cat->total, 2) . "\n";
+                $label = $categories[$cat->category] ?? '📋 Boshqa';
+                $message .= "{$rank} {$label}: " . number_format($cat->total, 0, '.', ' ') . " so'm\n";
             }
             $message .= "\n";
         }
 
-        // Forecast
         $avgDailyExpense = $user->transactions()
             ->expense()
             ->forMonth()
@@ -320,15 +301,15 @@ class FinanceHandler
         $daysLeft = now()->daysInMonth - now()->day;
         $projected = $thisMonthExpense + ($avgDailyExpense * $daysLeft);
 
-        $message .= "<b>🔮 Month-End Forecast:</b>\n";
-        $message .= "Projected spending: \$" . number_format($projected, 2) . "\n";
+        $message .= "<b>🔮 Oy oxiri prognozi:</b>\n";
+        $message .= "Taxminiy xarajat: " . number_format($projected, 0, '.', ' ') . " so'm\n";
 
         if ($user->monthly_budget_limit) {
             $diff = $user->monthly_budget_limit - $projected;
             if ($diff >= 0) {
-                $message .= "✅ Within budget (+\$" . number_format($diff, 2) . ")";
+                $message .= "✅ Byudjet ichida (+" . number_format($diff, 0, '.', ' ') . " so'm)";
             } else {
-                $message .= "⚠️ Over budget (-\$" . number_format(abs($diff), 2) . ")";
+                $message .= "⚠️ Byudjetdan oshadi (-" . number_format(abs($diff), 0, '.', ' ') . " so'm)";
             }
         }
 
@@ -356,7 +337,7 @@ class FinanceHandler
             ? config('telegram.income_categories')
             : config('telegram.expense_categories');
 
-        $message = "✅ Category updated to: {$categories[$category]}";
+        $message = "✅ Kategoriya o'zgartirildi: {$categories[$category]}";
 
         if ($messageId) {
             $this->bot->editMessage($user->telegram_id, $messageId, $message);
@@ -369,7 +350,7 @@ class FinanceHandler
     {
         if ($value === 'cancel') {
             $user->clearState();
-            $this->bot->editMessage($user->telegram_id, $messageId, "❌ Transaction cancelled.");
+            $this->bot->editMessage($user->telegram_id, $messageId, "❌ Tranzaksiya bekor qilindi.");
             return;
         }
 
@@ -387,17 +368,18 @@ class FinanceHandler
 
         $user->clearState();
 
-        // Check budget alerts
         if ($transaction->type === 'expense') {
             $this->checkBudgetAlerts($user);
         }
 
         $emoji = $transaction->type === 'income' ? '💵' : '💸';
-        $message = "{$emoji} <b>" . ucfirst($transaction->type) . " Added!</b>\n\n" .
-            "💰 Amount: {$transaction->getFormattedAmount()}\n" .
-            "📁 Category: {$transaction->getCategoryEmoji()}\n" .
-            ($transaction->note ? "📝 Note: {$transaction->note}\n" : "") .
-            "📅 Date: {$transaction->date->format('M j, Y')}";
+        $typeText = $transaction->type === 'income' ? 'Daromad' : 'Xarajat';
+        
+        $message = "{$emoji} <b>{$typeText} qo'shildi!</b>\n\n" .
+            "💰 Summa: " . number_format($transaction->amount, 0, '.', ' ') . " so'm\n" .
+            "📁 Kategoriya: {$transaction->getCategoryEmoji()}\n" .
+            ($transaction->note ? "📝 Izoh: {$transaction->note}\n" : "") .
+            "📅 Sana: {$transaction->date->format('d.m.Y')}";
 
         if ($messageId) {
             $this->bot->editMessage($user->telegram_id, $messageId, $message);
@@ -411,13 +393,13 @@ class FinanceHandler
         $transaction = $user->transactions()->find($txId);
         
         if (!$transaction) {
-            $this->bot->sendMessage($user->telegram_id, "❌ Transaction not found.");
+            $this->bot->sendMessage($user->telegram_id, "❌ Tranzaksiya topilmadi.");
             return;
         }
 
         $transaction->delete();
 
-        $message = "🗑️ Transaction deleted.";
+        $message = "🗑️ Tranzaksiya o'chirildi.";
 
         if ($messageId) {
             $this->bot->editMessage($user->telegram_id, $messageId, $message);
@@ -434,22 +416,22 @@ class FinanceHandler
             ->orderBy('created_at', 'desc')
             ->paginate($perPage, ['*'], 'page', $page);
 
-        $message = "📋 <b>Transactions</b> (Page {$page})\n\n";
+        $message = "📋 <b>Tranzaksiyalar</b> ({$page}-sahifa)\n\n";
 
         foreach ($transactions as $tx) {
             $emoji = $tx->type === 'income' ? '💵' : '💸';
-            $message .= "{$emoji} {$tx->getFormattedAmount()} - {$tx->category}\n";
-            $message .= "   📅 {$tx->date->format('M j')} | {$tx->note}\n";
+            $message .= "{$emoji} " . number_format($tx->amount, 0, '.', ' ') . " - {$tx->category}\n";
+            $message .= "   📅 {$tx->date->format('d.m')} | {$tx->note}\n";
         }
 
         $keyboard = [];
         $navRow = [];
 
         if ($page > 1) {
-            $navRow[] = ['text' => '◀️ Prev', 'callback_data' => 'page:transactions_' . ($page - 1)];
+            $navRow[] = ['text' => '◀️ Oldingi', 'callback_data' => 'page:transactions_' . ($page - 1)];
         }
         if ($page < $transactions->lastPage()) {
-            $navRow[] = ['text' => 'Next ▶️', 'callback_data' => 'page:transactions_' . ($page + 1)];
+            $navRow[] = ['text' => 'Keyingi ▶️', 'callback_data' => 'page:transactions_' . ($page + 1)];
         }
 
         if (!empty($navRow)) {
@@ -471,30 +453,28 @@ class FinanceHandler
 
         $alerts = [];
 
-        // Daily budget
         if ($user->daily_budget_limit) {
             $todayExpense = $user->getTodayExpenses();
             if ($todayExpense > $user->daily_budget_limit) {
                 $over = $todayExpense - $user->daily_budget_limit;
-                $alerts[] = "⚠️ Daily budget exceeded by \$" . number_format($over, 2);
+                $alerts[] = "⚠️ Kunlik byudjet " . number_format($over, 0, '.', ' ') . " so'mga oshib ketdi";
             } elseif ($todayExpense > $user->daily_budget_limit * 0.8) {
-                $alerts[] = "⚡ Approaching daily budget limit (80%+)";
+                $alerts[] = "⚡ Kunlik byudjet limitiga yaqinlashyapsiz (80%+)";
             }
         }
 
-        // Monthly budget
         if ($user->monthly_budget_limit) {
             $monthExpense = $user->getMonthExpenses();
             if ($monthExpense > $user->monthly_budget_limit) {
                 $over = $monthExpense - $user->monthly_budget_limit;
-                $alerts[] = "⚠️ Monthly budget exceeded by \$" . number_format($over, 2);
+                $alerts[] = "⚠️ Oylik byudjet " . number_format($over, 0, '.', ' ') . " so'mga oshib ketdi";
             } elseif ($monthExpense > $user->monthly_budget_limit * 0.9) {
-                $alerts[] = "⚡ Approaching monthly budget limit (90%+)";
+                $alerts[] = "⚡ Oylik byudjet limitiga yaqinlashyapsiz (90%+)";
             }
         }
 
         if (!empty($alerts)) {
-            $message = "🚨 <b>Budget Alert!</b>\n\n" . implode("\n", $alerts);
+            $message = "🚨 <b>Byudjet ogohlantirishi!</b>\n\n" . implode("\n", $alerts);
             $this->bot->sendMessage($user->telegram_id, $message);
         }
     }
@@ -502,32 +482,21 @@ class FinanceHandler
     protected function fetchCurrencyRates(): ?array
     {
         try {
-            $apiKey = config('telegram.currency_api_key');
-            
-            if ($apiKey) {
-                $response = Http::get("https://api.exchangerate-api.com/v4/latest/USD");
-                
-                if ($response->successful()) {
-                    $data = $response->json();
-                    
-                    // Store rates
-                    foreach (['EUR', 'RUB', 'UZS'] as $currency) {
-                        if (isset($data['rates'][$currency])) {
-                            CurrencyRate::updateOrCreate(
-                                ['from_currency' => 'USD', 'to_currency' => $currency, 'date' => today()],
-                                ['rate' => $data['rates'][$currency]]
-                            );
-                        }
-                    }
-                    
-                    return $data['rates'];
-                }
-            }
-            
-            // Fallback to free API
             $response = Http::get("https://api.exchangerate-api.com/v4/latest/USD");
+            
             if ($response->successful()) {
-                return $response->json()['rates'] ?? null;
+                $data = $response->json();
+                
+                foreach (['EUR', 'RUB', 'UZS'] as $currency) {
+                    if (isset($data['rates'][$currency])) {
+                        CurrencyRate::updateOrCreate(
+                            ['from_currency' => 'USD', 'to_currency' => $currency, 'date' => today()],
+                            ['rate' => $data['rates'][$currency]]
+                        );
+                    }
+                }
+                
+                return $data['rates'];
             }
         } catch (\Exception $e) {
             // Silent fail
@@ -544,4 +513,3 @@ class FinanceHandler
         return str_repeat('█', $filled) . str_repeat('░', $empty);
     }
 }
-

@@ -22,9 +22,9 @@ class TaskHandler
         
         $this->bot->sendMessage(
             $user->telegram_id,
-            "📝 <b>Add New Task</b>\n\n" .
-            "Please enter the task title:\n\n" .
-            "💡 You can also add tags using # (e.g., #work #urgent)"
+            "📝 <b>Yangi vazifa qo'shish</b>\n\n" .
+            "Vazifa nomini kiriting:\n\n" .
+            "💡 Teglar qo'shish uchun # ishlating (masalan, #ish #muhim)"
         );
     }
 
@@ -43,14 +43,14 @@ class TaskHandler
         if ($tasks->isEmpty()) {
             $this->bot->sendMessage(
                 $user->telegram_id,
-                "📅 <b>Today's Tasks</b>\n\n" .
-                "No tasks for today! 🎉\n\n" .
-                "Use ➕ Add Task to create one."
+                "📅 <b>Bugungi vazifalar</b>\n\n" .
+                "Bugun uchun vazifa yo'q! 🎉\n\n" .
+                "Yangi vazifa qo'shish uchun ➕ Vazifa qo'shish tugmasini bosing."
             );
             return;
         }
 
-        $this->displayTaskList($user, $tasks, "📅 Today's Tasks");
+        $this->displayTaskList($user, $tasks, "📅 Bugungi vazifalar");
     }
 
     public function showWeekTasks(TelegramUser $user): void
@@ -61,7 +61,7 @@ class TaskHandler
             ->orderByRaw("FIELD(priority, 'high', 'medium', 'low')")
             ->get();
 
-        $this->displayTaskList($user, $tasks, "📅 This Week's Tasks");
+        $this->displayTaskList($user, $tasks, "📅 Shu hafta vazifalari");
     }
 
     public function showMonthTasks(TelegramUser $user): void
@@ -72,7 +72,7 @@ class TaskHandler
             ->orderByRaw("FIELD(priority, 'high', 'medium', 'low')")
             ->get();
 
-        $this->displayTaskList($user, $tasks, "📆 This Month's Tasks");
+        $this->displayTaskList($user, $tasks, "📆 Shu oy vazifalari");
     }
 
     public function showYearTasks(TelegramUser $user): void
@@ -82,22 +82,29 @@ class TaskHandler
             ->orderBy('date')
             ->get();
 
-        // Group by month
         $grouped = $tasks->groupBy(fn($task) => $task->date->format('F Y'));
         
-        $message = "📊 <b>This Year's Tasks</b>\n\n";
+        $message = "📊 <b>Yillik ko'rinish</b>\n\n";
+        
+        $months = [
+            'January' => 'Yanvar', 'February' => 'Fevral', 'March' => 'Mart',
+            'April' => 'Aprel', 'May' => 'May', 'June' => 'Iyun',
+            'July' => 'Iyul', 'August' => 'Avgust', 'September' => 'Sentabr',
+            'October' => 'Oktabr', 'November' => 'Noyabr', 'December' => 'Dekabr'
+        ];
         
         foreach ($grouped as $month => $monthTasks) {
             $completed = $monthTasks->where('status', 'completed')->count();
             $total = $monthTasks->count();
-            $message .= "📅 <b>{$month}</b>: {$completed}/{$total} completed\n";
+            $monthName = str_replace(array_keys($months), array_values($months), $month);
+            $message .= "📅 <b>{$monthName}</b>: {$completed}/{$total} bajarildi\n";
         }
         
         $totalCompleted = $tasks->where('status', 'completed')->count();
         $totalTasks = $tasks->count();
         $percentage = $totalTasks > 0 ? round(($totalCompleted / $totalTasks) * 100) : 0;
         
-        $message .= "\n📈 Overall: {$totalCompleted}/{$totalTasks} ({$percentage}%)";
+        $message .= "\n📈 Umumiy: {$totalCompleted}/{$totalTasks} ({$percentage}%)";
         
         $this->bot->sendMessage($user->telegram_id, $message);
     }
@@ -111,19 +118,18 @@ class TaskHandler
             ->orderBy('difficulty_level', 'desc')
             ->get();
 
-        $message = "🌅 <b>Morning Plan</b>\n\n";
-        $message .= "📅 " . now()->format('l, F j, Y') . "\n\n";
+        $message = "🌅 <b>Ertalabki reja</b>\n\n";
+        $message .= "📅 " . now()->format('d.m.Y, l') . "\n\n";
 
         if ($tasks->isEmpty()) {
-            $message .= "No tasks planned for today.\n\n" .
-                "🎯 Tip: Plan your day the night before!";
+            $message .= "Bugun uchun rejalar yo'q.\n\n" .
+                "🎯 Maslahat: Kunni kechqurun rejalashtirib oling!";
         } else {
-            // Prioritize difficult tasks for morning
             $morningTasks = $tasks->where('difficulty_level', '>=', 4);
             $otherTasks = $tasks->where('difficulty_level', '<', 4);
 
             if ($morningTasks->isNotEmpty()) {
-                $message .= "🔥 <b>Tackle First (High Energy):</b>\n";
+                $message .= "🔥 <b>Avval bajaring (Yuqori energiya):</b>\n";
                 foreach ($morningTasks as $task) {
                     $message .= "{$task->getPriorityEmoji()} {$task->title}\n";
                 }
@@ -131,13 +137,13 @@ class TaskHandler
             }
 
             if ($otherTasks->isNotEmpty()) {
-                $message .= "📋 <b>Other Tasks:</b>\n";
+                $message .= "📋 <b>Boshqa vazifalar:</b>\n";
                 foreach ($otherTasks as $task) {
                     $message .= "{$task->getPriorityEmoji()} {$task->title}\n";
                 }
             }
 
-            $message .= "\n💡 <b>AI Tip:</b> Complete difficult tasks in the morning when energy is highest!";
+            $message .= "\n💡 <b>AI maslahati:</b> Qiyin vazifalarni ertalab bajaring - energiya yuqori bo'ladi!";
         }
 
         $this->bot->sendMessage($user->telegram_id, $message);
@@ -151,22 +157,20 @@ class TaskHandler
         $pending = $tasks->where('status', 'pending');
         $totalPoints = $completed->sum('points_earned');
 
-        $message = "🌙 <b>Evening Summary</b>\n\n";
-        $message .= "📅 " . now()->format('l, F j, Y') . "\n\n";
+        $message = "🌙 <b>Kechki xulosa</b>\n\n";
+        $message .= "📅 " . now()->format('d.m.Y, l') . "\n\n";
 
-        // Stats
         $completedCount = $completed->count();
         $totalCount = $tasks->count();
         $percentage = $totalCount > 0 ? round(($completedCount / $totalCount) * 100) : 0;
 
-        $message .= "📊 <b>Today's Stats:</b>\n";
-        $message .= "✅ Completed: {$completedCount}/{$totalCount} ({$percentage}%)\n";
-        $message .= "🎯 Points earned: {$totalPoints}\n";
-        $message .= "🔥 Current streak: {$user->streak_days} days\n\n";
+        $message .= "📊 <b>Bugungi statistika:</b>\n";
+        $message .= "✅ Bajarildi: {$completedCount}/{$totalCount} ({$percentage}%)\n";
+        $message .= "🎯 Yig'ilgan ball: {$totalPoints}\n";
+        $message .= "🔥 Joriy seriya: {$user->streak_days} kun\n\n";
 
-        // Completed tasks
         if ($completed->isNotEmpty()) {
-            $message .= "✅ <b>Completed:</b>\n";
+            $message .= "✅ <b>Bajarilgan:</b>\n";
             foreach ($completed as $task) {
                 $rating = $task->rating ? str_repeat('⭐', $task->rating) : '';
                 $message .= "• {$task->title} {$rating}\n";
@@ -174,29 +178,27 @@ class TaskHandler
             $message .= "\n";
         }
 
-        // Pending tasks
         if ($pending->isNotEmpty()) {
-            $message .= "⏳ <b>Pending (moving to tomorrow):</b>\n";
+            $message .= "⏳ <b>Kutilmoqda (ertaga o'tadi):</b>\n";
             foreach ($pending as $task) {
                 $message .= "• {$task->title}\n";
             }
             $message .= "\n";
         }
 
-        // Encouragement
         if ($percentage >= 100) {
-            $message .= "🎉 Perfect day! All tasks completed!";
+            $message .= "🎉 Mukammal kun! Barcha vazifalar bajarildi!";
         } elseif ($percentage >= 75) {
-            $message .= "👍 Great job! Almost there!";
+            $message .= "👍 Ajoyib ish! Deyarli tamom!";
         } elseif ($percentage >= 50) {
-            $message .= "💪 Good progress! Keep going!";
+            $message .= "💪 Yaxshi natija! Davom eting!";
         } else {
-            $message .= "🌱 Every step counts. Tomorrow is a new day!";
+            $message .= "🌱 Har bir qadam muhim. Ertaga yangi kun!";
         }
 
         $keyboard = [];
         if ($pending->isNotEmpty()) {
-            $keyboard[] = [['text' => '📅 Move pending to tomorrow', 'callback_data' => 'task_move_pending']];
+            $keyboard[] = [['text' => '📅 Ertaga o\'tkazish', 'callback_data' => 'task_move_pending']];
         }
 
         $this->bot->sendMessageWithInlineKeyboard($user->telegram_id, $message, $keyboard);
@@ -207,22 +209,21 @@ class TaskHandler
         $task = $user->tasks()->find($taskId);
         
         if (!$task) {
-            $this->bot->sendMessage($user->telegram_id, "❌ Task not found.");
+            $this->bot->sendMessage($user->telegram_id, "❌ Vazifa topilmadi.");
             return;
         }
 
         $task->markAsCompleted();
         
-        // Check for achievements
         $this->checkTaskAchievements($user);
 
-        $message = "✅ <b>Task Completed!</b>\n\n" .
+        $message = "✅ <b>Vazifa bajarildi!</b>\n\n" .
             "📝 {$task->title}\n" .
-            "🎯 Points earned: +{$task->points_earned}\n\n" .
-            "Would you like to rate this task?";
+            "🎯 Yig'ilgan ball: +{$task->points_earned}\n\n" .
+            "Bu vazifani baholaysizmi?";
 
         $keyboard = $this->bot->buildRatingKeyboard("task_rate:{$task->id}");
-        $keyboard[] = [['text' => 'Skip rating', 'callback_data' => "task_rate:{$task->id}:skip"]];
+        $keyboard[] = [['text' => 'O\'tkazib yuborish', 'callback_data' => "task_rate:{$task->id}:skip"]];
 
         if ($messageId) {
             $this->bot->editMessage($user->telegram_id, $messageId, $message, $keyboard);
@@ -236,7 +237,7 @@ class TaskHandler
         $task = $user->tasks()->find($taskId);
         
         if (!$task) {
-            $this->bot->sendMessage($user->telegram_id, "❌ Task not found.");
+            $this->bot->sendMessage($user->telegram_id, "❌ Vazifa topilmadi.");
             return;
         }
 
@@ -244,11 +245,11 @@ class TaskHandler
 
         $keyboard = [
             [
-                ['text' => '✅ Done', 'callback_data' => "task_done:{$task->id}"],
-                ['text' => '✏️ Edit', 'callback_data' => "task_edit:{$task->id}"],
+                ['text' => '✅ Bajarildi', 'callback_data' => "task_done:{$task->id}"],
+                ['text' => '✏️ Tahrirlash', 'callback_data' => "task_edit:{$task->id}"],
             ],
             [
-                ['text' => '🗑️ Delete', 'callback_data' => "task_delete:{$task->id}"],
+                ['text' => '🗑️ O\'chirish', 'callback_data' => "task_delete:{$task->id}"],
             ],
         ];
 
@@ -264,7 +265,7 @@ class TaskHandler
         $task = $user->tasks()->find($taskId);
         
         if (!$task) {
-            $this->bot->sendMessage($user->telegram_id, "❌ Task not found.");
+            $this->bot->sendMessage($user->telegram_id, "❌ Vazifa topilmadi.");
             return;
         }
 
@@ -272,25 +273,25 @@ class TaskHandler
 
         $keyboard = [
             [
-                ['text' => '📝 Title', 'callback_data' => "task_edit_field:{$task->id}:title"],
-                ['text' => '📋 Description', 'callback_data' => "task_edit_field:{$task->id}:description"],
+                ['text' => '📝 Nom', 'callback_data' => "task_edit_field:{$task->id}:title"],
+                ['text' => '📋 Tavsif', 'callback_data' => "task_edit_field:{$task->id}:description"],
             ],
             [
-                ['text' => '🎯 Priority', 'callback_data' => "task_edit_field:{$task->id}:priority"],
-                ['text' => '📁 Category', 'callback_data' => "task_edit_field:{$task->id}:category"],
+                ['text' => '🎯 Muhimlik', 'callback_data' => "task_edit_field:{$task->id}:priority"],
+                ['text' => '📁 Kategoriya', 'callback_data' => "task_edit_field:{$task->id}:category"],
             ],
             [
-                ['text' => '📅 Date', 'callback_data' => "task_edit_field:{$task->id}:date"],
-                ['text' => '⏰ Time', 'callback_data' => "task_edit_field:{$task->id}:time"],
+                ['text' => '📅 Sana', 'callback_data' => "task_edit_field:{$task->id}:date"],
+                ['text' => '⏰ Vaqt', 'callback_data' => "task_edit_field:{$task->id}:time"],
             ],
             [
-                ['text' => '❌ Cancel', 'callback_data' => 'cancel_edit'],
+                ['text' => '❌ Bekor qilish', 'callback_data' => 'cancel_edit'],
             ],
         ];
 
-        $message = "✏️ <b>Edit Task</b>\n\n" .
+        $message = "✏️ <b>Vazifani tahrirlash</b>\n\n" .
             "📝 {$task->title}\n\n" .
-            "What would you like to edit?";
+            "Nimani o'zgartirmoqchisiz?";
 
         if ($messageId) {
             $this->bot->editMessage($user->telegram_id, $messageId, $message, $keyboard);
@@ -304,20 +305,20 @@ class TaskHandler
         $task = $user->tasks()->find($taskId);
         
         if (!$task) {
-            $this->bot->sendMessage($user->telegram_id, "❌ Task not found.");
+            $this->bot->sendMessage($user->telegram_id, "❌ Vazifa topilmadi.");
             return;
         }
 
         $keyboard = [
             [
-                ['text' => '✅ Yes, delete', 'callback_data' => "task_confirm_delete:{$task->id}"],
-                ['text' => '❌ Cancel', 'callback_data' => "task_view:{$task->id}"],
+                ['text' => '✅ Ha, o\'chirish', 'callback_data' => "task_confirm_delete:{$task->id}"],
+                ['text' => '❌ Bekor qilish', 'callback_data' => "task_view:{$task->id}"],
             ],
         ];
 
-        $message = "🗑️ <b>Delete Task?</b>\n\n" .
+        $message = "🗑️ <b>Vazifani o'chirish?</b>\n\n" .
             "📝 {$task->title}\n\n" .
-            "Are you sure you want to delete this task?";
+            "Rostdan ham o'chirmoqchimisiz?";
 
         if ($messageId) {
             $this->bot->editMessage($user->telegram_id, $messageId, $message, $keyboard);
@@ -343,12 +344,12 @@ class TaskHandler
             $task->save();
         }
 
-        $message = "✅ <b>Task Complete!</b>\n\n" .
+        $message = "✅ <b>Vazifa bajarildi!</b>\n\n" .
             "📝 {$task->title}\n" .
-            "🎯 Points: +{$task->points_earned}";
+            "🎯 Ball: +{$task->points_earned}";
 
         if ($task->rating) {
-            $message .= "\n⭐ Rating: " . str_repeat('⭐', $task->rating);
+            $message .= "\n⭐ Baho: " . str_repeat('⭐', $task->rating);
         }
 
         if ($messageId) {
@@ -364,7 +365,6 @@ class TaskHandler
         $stateData['priority'] = $value;
         $user->setState($user->current_state, $stateData);
 
-        // Continue to next step
         $this->continueTaskCreation($user, $messageId);
     }
 
@@ -374,7 +374,6 @@ class TaskHandler
         $stateData['category'] = $value;
         $user->setState($user->current_state, $stateData);
 
-        // Continue to next step
         $this->continueTaskCreation($user, $messageId);
     }
 
@@ -382,7 +381,7 @@ class TaskHandler
     {
         if ($value === 'cancel') {
             $user->clearState();
-            $this->bot->editMessage($user->telegram_id, $messageId, "❌ Task creation cancelled.");
+            $this->bot->editMessage($user->telegram_id, $messageId, "❌ Vazifa yaratish bekor qilindi.");
             return;
         }
 
@@ -404,13 +403,13 @@ class TaskHandler
 
         $user->clearState();
 
-        $message = "✅ <b>Task Created!</b>\n\n" .
+        $message = "✅ <b>Vazifa yaratildi!</b>\n\n" .
             $this->formatTaskDetails($task);
 
         $keyboard = [
             [
-                ['text' => '➕ Add Another', 'callback_data' => 'start_add_task'],
-                ['text' => '📋 View Tasks', 'callback_data' => 'view_today_tasks'],
+                ['text' => '➕ Yana qo\'shish', 'callback_data' => 'start_add_task'],
+                ['text' => '📋 Vazifalarni ko\'rish', 'callback_data' => 'view_today_tasks'],
             ],
         ];
 
@@ -434,7 +433,7 @@ class TaskHandler
             ->orderByRaw("FIELD(priority, 'high', 'medium', 'low')")
             ->paginate($perPage, ['*'], 'page', $page);
 
-        $this->displayTaskList($user, $tasks->items(), "📋 Tasks (Page {$page})", $messageId, [
+        $this->displayTaskList($user, $tasks->items(), "📋 Vazifalar ({$page}-sahifa)", $messageId, [
             'current_page' => $page,
             'last_page' => $tasks->lastPage(),
             'type' => 'tasks',
@@ -444,7 +443,7 @@ class TaskHandler
     protected function displayTaskList(TelegramUser $user, $tasks, string $title, ?int $messageId = null, array $pagination = []): void
     {
         if (empty($tasks) || (is_countable($tasks) && count($tasks) === 0)) {
-            $this->bot->sendMessage($user->telegram_id, "{$title}\n\nNo tasks found.");
+            $this->bot->sendMessage($user->telegram_id, "{$title}\n\nVazifa topilmadi.");
             return;
         }
 
@@ -475,14 +474,13 @@ class TaskHandler
             }
         }
 
-        // Pagination
         if (!empty($pagination)) {
             $navRow = [];
             if ($pagination['current_page'] > 1) {
-                $navRow[] = ['text' => '◀️ Prev', 'callback_data' => "page:{$pagination['type']}_" . ($pagination['current_page'] - 1)];
+                $navRow[] = ['text' => '◀️ Oldingi', 'callback_data' => "page:{$pagination['type']}_" . ($pagination['current_page'] - 1)];
             }
             if ($pagination['current_page'] < $pagination['last_page']) {
-                $navRow[] = ['text' => 'Next ▶️', 'callback_data' => "page:{$pagination['type']}_" . ($pagination['current_page'] + 1)];
+                $navRow[] = ['text' => 'Keyingi ▶️', 'callback_data' => "page:{$pagination['type']}_" . ($pagination['current_page'] + 1)];
             }
             if (!empty($navRow)) {
                 $keyboard[] = $navRow;
@@ -504,30 +502,32 @@ class TaskHandler
             $message .= "📝 {$task->description}\n\n";
         }
 
-        $message .= "{$task->getPriorityEmoji()} Priority: " . ucfirst($task->priority) . "\n";
+        $priorities = ['high' => 'Yuqori', 'medium' => 'O\'rta', 'low' => 'Past'];
+        $message .= "{$task->getPriorityEmoji()} Muhimlik: " . ($priorities[$task->priority] ?? $task->priority) . "\n";
         $message .= "{$task->getCategoryEmoji()}\n";
         
         if ($task->date) {
-            $message .= "📅 Date: {$task->date->format('M j, Y')}\n";
+            $message .= "📅 Sana: {$task->date->format('d.m.Y')}\n";
         }
         
         if ($task->time) {
-            $message .= "⏰ Time: " . substr($task->time, 0, 5) . "\n";
+            $message .= "⏰ Vaqt: " . substr($task->time, 0, 5) . "\n";
         }
 
         if ($task->tags) {
-            $message .= "🏷️ Tags: {$task->getFormattedTags()}\n";
+            $message .= "🏷️ Teglar: {$task->getFormattedTags()}\n";
         }
 
         if ($task->is_recurring) {
-            $message .= "🔄 Recurring: " . ucfirst($task->recurrence_type) . "\n";
+            $recurrenceTypes = ['daily' => 'Kunlik', 'weekly' => 'Haftalik', 'monthly' => 'Oylik', 'yearly' => 'Yillik'];
+            $message .= "🔄 Takroriy: " . ($recurrenceTypes[$task->recurrence_type] ?? $task->recurrence_type) . "\n";
         }
 
         if ($task->status === 'completed') {
-            $message .= "\n✅ Completed: {$task->completed_at->format('M j, Y H:i')}\n";
-            $message .= "🎯 Points earned: {$task->points_earned}\n";
+            $message .= "\n✅ Bajarildi: {$task->completed_at->format('d.m.Y H:i')}\n";
+            $message .= "🎯 Yig'ilgan ball: {$task->points_earned}\n";
             if ($task->rating) {
-                $message .= "⭐ Rating: " . str_repeat('⭐', $task->rating) . "\n";
+                $message .= "⭐ Baho: " . str_repeat('⭐', $task->rating) . "\n";
             }
         }
 
@@ -539,7 +539,6 @@ class TaskHandler
         $data = $user->state_data;
         $step = $data['step'] ?? '';
 
-        // Determine next step
         $nextStep = match ($step) {
             'priority' => 'category',
             'category' => 'date',
@@ -563,7 +562,7 @@ class TaskHandler
         $categories = config('telegram.task_categories');
         $keyboard = $this->bot->buildCategoryInlineKeyboard($categories, 'task_category');
 
-        $message = "📁 <b>Select Category</b>";
+        $message = "📁 <b>Kategoriyani tanlang</b>";
 
         if ($messageId) {
             $this->bot->editMessage($user->telegram_id, $messageId, $message, $keyboard);
@@ -576,16 +575,16 @@ class TaskHandler
     {
         $keyboard = [
             [
-                ['text' => '📅 Today', 'callback_data' => 'task_date:today'],
-                ['text' => '📆 Tomorrow', 'callback_data' => 'task_date:tomorrow'],
+                ['text' => '📅 Bugun', 'callback_data' => 'task_date:today'],
+                ['text' => '📆 Ertaga', 'callback_data' => 'task_date:tomorrow'],
             ],
             [
-                ['text' => '📅 This Week', 'callback_data' => 'task_date:week'],
-                ['text' => '📆 Next Week', 'callback_data' => 'task_date:next_week'],
+                ['text' => '📅 Shu hafta', 'callback_data' => 'task_date:week'],
+                ['text' => '📆 Keyingi hafta', 'callback_data' => 'task_date:next_week'],
             ],
         ];
 
-        $message = "📅 <b>When is this task due?</b>";
+        $message = "📅 <b>Bu vazifa qachon bajarilishi kerak?</b>";
 
         if ($messageId) {
             $this->bot->editMessage($user->telegram_id, $messageId, $message, $keyboard);
@@ -598,22 +597,23 @@ class TaskHandler
     {
         $data = $user->state_data;
 
-        $message = "📝 <b>Confirm Task</b>\n\n";
-        $message .= "📌 Title: {$data['title']}\n";
+        $message = "📝 <b>Vazifani tasdiqlash</b>\n\n";
+        $message .= "📌 Nom: {$data['title']}\n";
         
         if (!empty($data['description'])) {
-            $message .= "📝 Description: {$data['description']}\n";
+            $message .= "📝 Tavsif: {$data['description']}\n";
         }
         
         $priority = $data['priority'] ?? 'medium';
-        $message .= "🎯 Priority: " . ucfirst($priority) . "\n";
+        $priorities = ['high' => 'Yuqori', 'medium' => 'O\'rta', 'low' => 'Past'];
+        $message .= "🎯 Muhimlik: " . ($priorities[$priority] ?? $priority) . "\n";
         
         $category = $data['category'] ?? 'other';
         $categories = config('telegram.task_categories');
-        $message .= "📁 Category: {$categories[$category]}\n";
+        $message .= "📁 Kategoriya: {$categories[$category]}\n";
         
         if (!empty($data['tags'])) {
-            $message .= "🏷️ Tags: " . implode(' ', $data['tags']) . "\n";
+            $message .= "🏷️ Teglar: " . implode(' ', $data['tags']) . "\n";
         }
 
         $keyboard = $this->bot->buildConfirmKeyboard('task_confirm');
@@ -629,7 +629,6 @@ class TaskHandler
     {
         $completedCount = $user->tasks_completed;
 
-        // First task
         if ($completedCount === 1) {
             $achievement = UserAchievement::award($user, 'first_task');
             if ($achievement) {
@@ -637,7 +636,6 @@ class TaskHandler
             }
         }
 
-        // Task milestones
         if ($completedCount === 10) {
             $achievement = UserAchievement::award($user, 'tasks_10');
             if ($achievement) {
@@ -659,7 +657,6 @@ class TaskHandler
             }
         }
 
-        // Streak achievements
         if ($user->streak_days === 7) {
             $achievement = UserAchievement::award($user, 'task_streak_7');
             if ($achievement) {
@@ -677,12 +674,11 @@ class TaskHandler
 
     protected function notifyAchievement(TelegramUser $user, UserAchievement $achievement): void
     {
-        $message = "🎉 <b>Achievement Unlocked!</b>\n\n" .
+        $message = "🎉 <b>Yutuq ochildi!</b>\n\n" .
             "{$achievement->achievement_icon} <b>{$achievement->achievement_name}</b>\n" .
             "📝 {$achievement->description}\n" .
-            "🎯 +{$achievement->points_awarded} points!";
+            "🎯 +{$achievement->points_awarded} ball!";
 
         $this->bot->sendMessage($user->telegram_id, $message);
     }
 }
-

@@ -21,9 +21,9 @@ class DebtHandler
         
         $this->bot->sendMessage(
             $user->telegram_id,
-            "📤 <b>Add Debt (Money I Gave)</b>\n\n" .
-            "Who did you lend money to?\n\n" .
-            "Enter the person's name:"
+            "📤 <b>Qarz berdim</b>\n\n" .
+            "Kimga qarz berdingiz?\n\n" .
+            "Ism yoki nom kiriting:"
         );
     }
 
@@ -33,9 +33,9 @@ class DebtHandler
         
         $this->bot->sendMessage(
             $user->telegram_id,
-            "📥 <b>Add Debt (Money I Owe)</b>\n\n" .
-            "Who did you borrow money from?\n\n" .
-            "Enter the person's name:"
+            "📥 <b>Qarz oldim</b>\n\n" .
+            "Kimdan qarz oldingiz?\n\n" .
+            "Ism yoki nom kiriting:"
         );
     }
 
@@ -46,14 +46,14 @@ class DebtHandler
         if ($debts->isEmpty()) {
             $this->bot->sendMessage(
                 $user->telegram_id,
-                "📋 <b>Active Debts</b>\n\n" .
-                "No active debts! 🎉\n\n" .
-                "You're debt-free!"
+                "📋 <b>Faol qarzlar</b>\n\n" .
+                "Faol qarzlar yo'q! 🎉\n\n" .
+                "Siz qarzdan xolisiz!"
             );
             return;
         }
 
-        $this->displayDebtList($user, $debts, "📋 Active Debts");
+        $this->displayDebtList($user, $debts, "📋 Faol qarzlar");
     }
 
     public function showDueSoon(TelegramUser $user): void
@@ -63,13 +63,13 @@ class DebtHandler
         if ($debts->isEmpty()) {
             $this->bot->sendMessage(
                 $user->telegram_id,
-                "⏰ <b>Due Soon</b>\n\n" .
-                "No debts due in the next 7 days."
+                "⏰ <b>Muddati yaqin</b>\n\n" .
+                "Keyingi 7 kunda muddati tugaydigan qarz yo'q."
             );
             return;
         }
 
-        $this->displayDebtList($user, $debts, "⏰ Debts Due Soon");
+        $this->displayDebtList($user, $debts, "⏰ Muddati yaqin qarzlar");
     }
 
     public function showPaidDebts(TelegramUser $user): void
@@ -83,13 +83,13 @@ class DebtHandler
         if ($debts->isEmpty()) {
             $this->bot->sendMessage(
                 $user->telegram_id,
-                "✅ <b>Paid Debts</b>\n\n" .
-                "No paid debts to show."
+                "✅ <b>To'langan qarzlar</b>\n\n" .
+                "To'langan qarzlar yo'q."
             );
             return;
         }
 
-        $this->displayDebtList($user, $debts, "✅ Paid Debts");
+        $this->displayDebtList($user, $debts, "✅ To'langan qarzlar");
     }
 
     public function showDebtSummary(TelegramUser $user): void
@@ -102,40 +102,39 @@ class DebtHandler
 
         $overdueCount = $user->debts()->overdue()->count();
 
-        $message = "📊 <b>Debt Summary</b>\n\n";
+        $message = "📊 <b>Qarz xulosasi</b>\n\n";
 
-        $message .= "📤 <b>Money I Gave (Owed to me):</b>\n";
-        $message .= "   Total: \$" . number_format($givenTotal, 2) . "\n";
-        $message .= "   Active debts: {$givenActive->count()}\n\n";
+        $message .= "📤 <b>Men bergan qarz (menga qarzdor):</b>\n";
+        $message .= "   Jami: " . number_format($givenTotal, 0, '.', ' ') . " so'm\n";
+        $message .= "   Faol qarzlar: {$givenActive->count()} ta\n\n";
 
-        $message .= "📥 <b>Money I Owe:</b>\n";
-        $message .= "   Total: \$" . number_format($receivedTotal, 2) . "\n";
-        $message .= "   Active debts: {$receivedActive->count()}\n\n";
+        $message .= "📥 <b>Men olgan qarz (men qarzdorman):</b>\n";
+        $message .= "   Jami: " . number_format($receivedTotal, 0, '.', ' ') . " so'm\n";
+        $message .= "   Faol qarzlar: {$receivedActive->count()} ta\n\n";
 
         $netPosition = $givenTotal - $receivedTotal;
         $netEmoji = $netPosition >= 0 ? '💚' : '❤️';
         $netText = $netPosition >= 0 
-            ? "People owe you \$" . number_format($netPosition, 2)
-            : "You owe \$" . number_format(abs($netPosition), 2);
+            ? "Sizga " . number_format($netPosition, 0, '.', ' ') . " so'm qarzdor"
+            : "Siz " . number_format(abs($netPosition), 0, '.', ' ') . " so'm qarzdorsiz";
 
-        $message .= "{$netEmoji} <b>Net Position:</b> {$netText}\n\n";
+        $message .= "{$netEmoji} <b>Holat:</b> {$netText}\n\n";
 
         if ($overdueCount > 0) {
-            $message .= "⚠️ <b>Overdue debts: {$overdueCount}</b>";
+            $message .= "⚠️ <b>Muddati o'tgan qarzlar: {$overdueCount} ta</b>";
         } else {
-            $message .= "✅ No overdue debts";
+            $message .= "✅ Muddati o'tgan qarzlar yo'q";
         }
 
-        // Top debtors
         if ($givenActive->isNotEmpty()) {
             $byPerson = $givenActive->groupBy('person_name')
                 ->map(fn($debts) => $debts->sum('amount') - $debts->sum('amount_paid'))
                 ->sortDesc()
                 ->take(3);
 
-            $message .= "\n\n<b>Top People Who Owe You:</b>\n";
+            $message .= "\n\n<b>Eng ko'p qarzdorlar:</b>\n";
             foreach ($byPerson as $person => $amount) {
-                $message .= "   👤 {$person}: \$" . number_format($amount, 2) . "\n";
+                $message .= "   👤 {$person}: " . number_format($amount, 0, '.', ' ') . " so'm\n";
             }
         }
 
@@ -147,17 +146,17 @@ class DebtHandler
         $debt = $user->debts()->find($debtId);
         
         if (!$debt) {
-            $this->bot->sendMessage($user->telegram_id, "❌ Debt not found.");
+            $this->bot->sendMessage($user->telegram_id, "❌ Qarz topilmadi.");
             return;
         }
 
         $debt->markAsPaid();
 
         $emoji = $debt->type === 'given' ? '📤' : '📥';
-        $message = "✅ <b>Debt Marked as Paid!</b>\n\n" .
+        $message = "✅ <b>Qarz to'landi!</b>\n\n" .
             "{$emoji} {$debt->person_name}\n" .
-            "💰 {$debt->getFormattedAmount()}\n" .
-            "📅 Paid: " . now()->format('M j, Y');
+            "💰 " . number_format($debt->amount, 0, '.', ' ') . " so'm\n" .
+            "📅 To'langan: " . now()->format('d.m.Y');
 
         if ($messageId) {
             $this->bot->editMessage($user->telegram_id, $messageId, $message);
@@ -165,7 +164,6 @@ class DebtHandler
             $this->bot->sendMessage($user->telegram_id, $message);
         }
 
-        // Check for debt-free achievement
         $activeDebtsCount = $user->debts()->active()->count();
         if ($activeDebtsCount === 0) {
             \App\Models\UserAchievement::award($user, 'debt_free');
@@ -177,15 +175,15 @@ class DebtHandler
         $debt = $user->debts()->find($debtId);
         
         if (!$debt) {
-            $this->bot->sendMessage($user->telegram_id, "❌ Debt not found.");
+            $this->bot->sendMessage($user->telegram_id, "❌ Qarz topilmadi.");
             return;
         }
 
         $user->setState('partial_payment', ['debt_id' => $debt->id]);
 
-        $message = "💳 <b>Partial Payment</b>\n\n" .
-            "Remaining: {$debt->getFormattedRemainingAmount()}\n\n" .
-            "Enter the payment amount:";
+        $message = "💳 <b>Qisman to'lov</b>\n\n" .
+            "Qolgan summa: " . number_format($debt->getRemainingAmount(), 0, '.', ' ') . " so'm\n\n" .
+            "To'lov summasini kiriting:";
 
         if ($messageId) {
             $this->bot->editMessage($user->telegram_id, $messageId, $message);
@@ -199,7 +197,7 @@ class DebtHandler
         $debt = $user->debts()->find($debtId);
         
         if (!$debt) {
-            $this->bot->sendMessage($user->telegram_id, "❌ Debt not found.");
+            $this->bot->sendMessage($user->telegram_id, "❌ Qarz topilmadi.");
             return;
         }
 
@@ -209,13 +207,13 @@ class DebtHandler
         
         if ($debt->status !== 'paid') {
             $keyboard[] = [
-                ['text' => '✅ Mark as Paid', 'callback_data' => "debt_pay:{$debt->id}"],
-                ['text' => '💳 Partial Payment', 'callback_data' => "debt_partial:{$debt->id}"],
+                ['text' => '✅ To\'landi', 'callback_data' => "debt_pay:{$debt->id}"],
+                ['text' => '💳 Qisman to\'lov', 'callback_data' => "debt_partial:{$debt->id}"],
             ];
         }
 
         $keyboard[] = [
-            ['text' => '🗑️ Delete', 'callback_data' => "debt_delete:{$debt->id}"],
+            ['text' => '🗑️ O\'chirish', 'callback_data' => "debt_delete:{$debt->id}"],
         ];
 
         if ($messageId) {
@@ -235,15 +233,15 @@ class DebtHandler
 
         $keyboard = [
             [
-                ['text' => '✅ Yes, delete', 'callback_data' => "debt_confirm_delete:{$debtId}"],
-                ['text' => '❌ Cancel', 'callback_data' => "debt_view:{$debtId}"],
+                ['text' => '✅ Ha, o\'chirish', 'callback_data' => "debt_confirm_delete:{$debtId}"],
+                ['text' => '❌ Bekor qilish', 'callback_data' => "debt_view:{$debtId}"],
             ],
         ];
 
-        $message = "🗑️ <b>Delete Debt?</b>\n\n" .
+        $message = "🗑️ <b>Qarzni o'chirish?</b>\n\n" .
             "👤 {$debt->person_name}\n" .
-            "💰 {$debt->getFormattedAmount()}\n\n" .
-            "Are you sure?";
+            "💰 " . number_format($debt->amount, 0, '.', ' ') . " so'm\n\n" .
+            "Rostdan ham o'chirmoqchimisiz?";
 
         if ($messageId) {
             $this->bot->editMessage($user->telegram_id, $messageId, $message, $keyboard);
@@ -256,23 +254,21 @@ class DebtHandler
     {
         if ($value === 'cancel') {
             $user->clearState();
-            $this->bot->editMessage($user->telegram_id, $messageId, "❌ Cancelled.");
+            $this->bot->editMessage($user->telegram_id, $messageId, "❌ Bekor qilindi.");
             return;
         }
 
-        // Handle confirm delete
         if (str_starts_with($value, 'delete:')) {
             $debtId = str_replace('delete:', '', $value);
             $debt = $user->debts()->find($debtId);
             
             if ($debt) {
                 $debt->delete();
-                $this->bot->editMessage($user->telegram_id, $messageId, "🗑️ Debt deleted.");
+                $this->bot->editMessage($user->telegram_id, $messageId, "🗑️ Qarz o'chirildi.");
             }
             return;
         }
 
-        // Handle create confirmation
         $data = $user->state_data;
 
         $debt = Debt::create([
@@ -290,19 +286,19 @@ class DebtHandler
         $user->clearState();
 
         $emoji = $debt->type === 'given' ? '📤' : '📥';
-        $typeText = $debt->type === 'given' ? 'Money Given' : 'Money Received';
+        $typeText = $debt->type === 'given' ? 'Qarz berdim' : 'Qarz oldim';
 
-        $message = "✅ <b>Debt Added!</b>\n\n" .
+        $message = "✅ <b>Qarz qo'shildi!</b>\n\n" .
             "{$emoji} {$typeText}\n" .
-            "👤 Person: {$debt->person_name}\n" .
-            "💰 Amount: {$debt->getFormattedAmount()}\n";
+            "👤 Shaxs: {$debt->person_name}\n" .
+            "💰 Summa: " . number_format($debt->amount, 0, '.', ' ') . " so'm\n";
 
         if ($debt->due_date) {
-            $message .= "📅 Due: {$debt->due_date->format('M j, Y')}\n";
+            $message .= "📅 Muddat: {$debt->due_date->format('d.m.Y')}\n";
         }
 
         if ($debt->note) {
-            $message .= "📝 Note: {$debt->note}";
+            $message .= "📝 Izoh: {$debt->note}";
         }
 
         if ($messageId) {
@@ -320,7 +316,7 @@ class DebtHandler
             ->orderBy('due_date')
             ->paginate($perPage, ['*'], 'page', $page);
 
-        $this->displayDebtList($user, $debts->items(), "📋 Debts (Page {$page})", $messageId, [
+        $this->displayDebtList($user, $debts->items(), "📋 Qarzlar ({$page}-sahifa)", $messageId, [
             'current_page' => $page,
             'last_page' => $debts->lastPage(),
         ]);
@@ -329,7 +325,7 @@ class DebtHandler
     protected function displayDebtList(TelegramUser $user, $debts, string $title, ?int $messageId = null, array $pagination = []): void
     {
         if (empty($debts) || (is_countable($debts) && count($debts) === 0)) {
-            $this->bot->sendMessage($user->telegram_id, "{$title}\n\nNo debts found.");
+            $this->bot->sendMessage($user->telegram_id, "{$title}\n\nQarz topilmadi.");
             return;
         }
 
@@ -340,23 +336,23 @@ class DebtHandler
             $statusEmoji = $debt->getStatusEmoji();
             
             $message .= "{$emoji} {$statusEmoji} <b>{$debt->person_name}</b>\n";
-            $message .= "   💰 {$debt->getFormattedAmount()}";
+            $message .= "   💰 " . number_format($debt->amount, 0, '.', ' ') . " so'm";
             
             if ($debt->amount_paid > 0) {
-                $message .= " (paid: \${$debt->amount_paid})";
+                $message .= " (to'langan: " . number_format($debt->amount_paid, 0, '.', ' ') . ")";
             }
             $message .= "\n";
             
             if ($debt->due_date) {
                 $daysUntil = $debt->getDaysUntilDue();
                 if ($daysUntil < 0) {
-                    $message .= "   ⚠️ Overdue by " . abs($daysUntil) . " days\n";
+                    $message .= "   ⚠️ " . abs($daysUntil) . " kun o'tib ketdi\n";
                 } elseif ($daysUntil === 0) {
-                    $message .= "   ⏰ Due today!\n";
+                    $message .= "   ⏰ Bugun!\n";
                 } elseif ($daysUntil <= 3) {
-                    $message .= "   ⏰ Due in {$daysUntil} days\n";
+                    $message .= "   ⏰ {$daysUntil} kun qoldi\n";
                 } else {
-                    $message .= "   📅 Due: {$debt->due_date->format('M j')}\n";
+                    $message .= "   📅 Muddat: {$debt->due_date->format('d.m')}\n";
                 }
             }
             $message .= "\n";
@@ -372,14 +368,13 @@ class DebtHandler
             }
         }
 
-        // Pagination
         if (!empty($pagination)) {
             $navRow = [];
             if ($pagination['current_page'] > 1) {
-                $navRow[] = ['text' => '◀️ Prev', 'callback_data' => 'page:debts_' . ($pagination['current_page'] - 1)];
+                $navRow[] = ['text' => '◀️ Oldingi', 'callback_data' => 'page:debts_' . ($pagination['current_page'] - 1)];
             }
             if ($pagination['current_page'] < $pagination['last_page']) {
-                $navRow[] = ['text' => 'Next ▶️', 'callback_data' => 'page:debts_' . ($pagination['current_page'] + 1)];
+                $navRow[] = ['text' => 'Keyingi ▶️', 'callback_data' => 'page:debts_' . ($pagination['current_page'] + 1)];
             }
             if (!empty($navRow)) {
                 $keyboard[] = $navRow;
@@ -396,49 +391,48 @@ class DebtHandler
     protected function formatDebtDetails(Debt $debt): string
     {
         $emoji = $debt->type === 'given' ? '📤' : '📥';
-        $typeText = $debt->type === 'given' ? 'Money I Gave' : 'Money I Owe';
+        $typeText = $debt->type === 'given' ? 'Men bergan qarz' : 'Men olgan qarz';
 
         $message = "{$debt->getStatusEmoji()} <b>{$typeText}</b>\n\n";
-        $message .= "👤 Person: {$debt->person_name}\n";
+        $message .= "👤 Shaxs: {$debt->person_name}\n";
         
         if ($debt->person_contact) {
-            $message .= "📱 Contact: {$debt->person_contact}\n";
+            $message .= "📱 Aloqa: {$debt->person_contact}\n";
         }
         
-        $message .= "💰 Amount: {$debt->getFormattedAmount()}\n";
+        $message .= "💰 Summa: " . number_format($debt->amount, 0, '.', ' ') . " so'm\n";
         
         if ($debt->amount_paid > 0) {
-            $message .= "✅ Paid: \${$debt->amount_paid}\n";
-            $message .= "📊 Remaining: {$debt->getFormattedRemainingAmount()}\n";
+            $message .= "✅ To'langan: " . number_format($debt->amount_paid, 0, '.', ' ') . " so'm\n";
+            $message .= "📊 Qolgan: " . number_format($debt->getRemainingAmount(), 0, '.', ' ') . " so'm\n";
         }
         
-        $message .= "📅 Created: {$debt->date->format('M j, Y')}\n";
+        $message .= "📅 Yaratilgan: {$debt->date->format('d.m.Y')}\n";
         
         if ($debt->due_date) {
             $daysUntil = $debt->getDaysUntilDue();
-            $message .= "⏰ Due: {$debt->due_date->format('M j, Y')}";
+            $message .= "⏰ Muddat: {$debt->due_date->format('d.m.Y')}";
             
             if ($debt->status !== 'paid') {
                 if ($daysUntil < 0) {
-                    $message .= " <b>(Overdue!)</b>";
+                    $message .= " <b>(Muddati o'tgan!)</b>";
                 } elseif ($daysUntil === 0) {
-                    $message .= " <b>(Today!)</b>";
+                    $message .= " <b>(Bugun!)</b>";
                 } elseif ($daysUntil <= 3) {
-                    $message .= " ({$daysUntil} days left)";
+                    $message .= " ({$daysUntil} kun qoldi)";
                 }
             }
             $message .= "\n";
         }
         
         if ($debt->note) {
-            $message .= "📝 Note: {$debt->note}\n";
+            $message .= "📝 Izoh: {$debt->note}\n";
         }
         
         if ($debt->paid_at) {
-            $message .= "\n✅ Paid on: {$debt->paid_at->format('M j, Y')}";
+            $message .= "\n✅ To'langan sana: {$debt->paid_at->format('d.m.Y')}";
         }
 
         return $message;
     }
 }
-

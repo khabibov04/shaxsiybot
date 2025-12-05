@@ -24,102 +24,104 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Admin Chat IDs (for notifications)
+    | Admin Chat IDs (bildirishnomalar uchun)
     |--------------------------------------------------------------------------
     */
     'admin_ids' => array_filter(explode(',', env('TELEGRAM_ADMIN_IDS', ''))),
 
     /*
     |--------------------------------------------------------------------------
-    | Currency API Key (for exchange rates)
+    | Currency API Key (valyuta kurslari uchun)
     |--------------------------------------------------------------------------
     */
     'currency_api_key' => env('CURRENCY_API_KEY', ''),
 
     /*
     |--------------------------------------------------------------------------
-    | OpenAI API Key (for AI Assistant)
+    | OpenAI API Key (AI Yordamchi uchun)
     |--------------------------------------------------------------------------
     */
     'openai_api_key' => env('OPENAI_API_KEY', ''),
 
     /*
     |--------------------------------------------------------------------------
-    | Default Language
+    | Standart til
     |--------------------------------------------------------------------------
     */
-    'default_language' => env('TELEGRAM_DEFAULT_LANG', 'en'),
+    'default_language' => env('TELEGRAM_DEFAULT_LANG', 'uz'),
 
     /*
     |--------------------------------------------------------------------------
-    | Supported Languages
+    | Qo'llab-quvvatlanadigan tillar
     |--------------------------------------------------------------------------
     */
-    'languages' => ['en', 'ru', 'uz'],
+    'languages' => ['uz', 'ru', 'en'],
 
     /*
     |--------------------------------------------------------------------------
-    | Task Categories
+    | Vazifa kategoriyalari - O'ZBEK TILIDA
     |--------------------------------------------------------------------------
     */
     'task_categories' => [
-        'work' => '💼 Work',
-        'home' => '🏠 Home',
-        'personal' => '👤 Personal',
-        'finance' => '💰 Finance',
-        'health' => '🏥 Health',
-        'education' => '📚 Education',
-        'shopping' => '🛒 Shopping',
-        'other' => '📋 Other',
+        'work' => '💼 Ish',
+        'home' => '🏠 Uy',
+        'personal' => '👤 Shaxsiy',
+        'finance' => '💰 Moliya',
+        'health' => '🏥 Salomatlik',
+        'education' => '📚 Ta\'lim',
+        'shopping' => '🛒 Xarid',
+        'other' => '📋 Boshqa',
     ],
 
     /*
     |--------------------------------------------------------------------------
-    | Expense Categories
+    | Xarajat kategoriyalari - O'ZBEK TILIDA
     |--------------------------------------------------------------------------
     */
     'expense_categories' => [
-        'food' => '🍔 Food',
+        'food' => '🍔 Oziq-ovqat',
         'transport' => '🚗 Transport',
-        'work' => '💼 Work',
-        'repair' => '🔧 Repair',
-        'entertainment' => '🎬 Entertainment',
-        'equipment' => '🖥️ Equipment',
-        'health' => '🏥 Health',
-        'education' => '📚 Education',
-        'utilities' => '💡 Utilities',
-        'other' => '📋 Other',
+        'work' => '💼 Ish',
+        'repair' => '🔧 Ta\'mirlash',
+        'entertainment' => '🎬 Ko\'ngil ochar',
+        'equipment' => '🖥️ Jihozlar',
+        'health' => '🏥 Salomatlik',
+        'education' => '📚 Ta\'lim',
+        'utilities' => '💡 Kommunal',
+        'clothing' => '👕 Kiyim',
+        'other' => '📋 Boshqa',
     ],
 
     /*
     |--------------------------------------------------------------------------
-    | Income Categories
+    | Daromad kategoriyalari - O'ZBEK TILIDA
     |--------------------------------------------------------------------------
     */
     'income_categories' => [
-        'salary' => '💵 Salary',
-        'freelance' => '💻 Freelance',
-        'investment' => '📈 Investment',
-        'gift' => '🎁 Gift',
-        'refund' => '↩️ Refund',
+        'salary' => '💵 Maosh',
+        'freelance' => '💻 Frilanc',
+        'investment' => '📈 Investitsiya',
+        'gift' => '🎁 Sovg\'a',
+        'refund' => '↩️ Qaytarilgan',
         'bonus' => '🎯 Bonus',
-        'other' => '📋 Other',
+        'business' => '🏢 Biznes',
+        'other' => '📋 Boshqa',
     ],
 
     /*
     |--------------------------------------------------------------------------
-    | Priority Levels
+    | Muhimlik darajalari - O'ZBEK TILIDA
     |--------------------------------------------------------------------------
     */
     'priorities' => [
-        'high' => '🔴 High',
-        'medium' => '🟡 Medium',
-        'low' => '🟢 Low',
+        'high' => '🔴 Yuqori',
+        'medium' => '🟡 O\'rta',
+        'low' => '🟢 Past',
     ],
 
     /*
     |--------------------------------------------------------------------------
-    | Gamification Settings
+    | O'yin elementlari sozlamalari
     |--------------------------------------------------------------------------
     */
     'gamification' => [
@@ -128,17 +130,17 @@ return [
         'points_on_time' => 5,
         'points_per_rating_star' => 2,
         'badges' => [
-            'beginner' => ['name' => '🌟 Beginner', 'points' => 0],
-            'active' => ['name' => '⭐ Active', 'points' => 100],
-            'productive' => ['name' => '🏅 Productive', 'points' => 500],
-            'master' => ['name' => '🏆 Master', 'points' => 1000],
-            'legend' => ['name' => '👑 Legend', 'points' => 5000],
+            'beginner' => ['name' => '🌟 Boshlang\'ich', 'points' => 0],
+            'active' => ['name' => '⭐ Faol', 'points' => 100],
+            'productive' => ['name' => '🏅 Samarali', 'points' => 500],
+            'master' => ['name' => '🏆 Usta', 'points' => 1000],
+            'legend' => ['name' => '👑 Afsona', 'points' => 5000],
         ],
     ],
 
     /*
     |--------------------------------------------------------------------------
-    | Notification Times
+    | Bildirishnoma vaqtlari
     |--------------------------------------------------------------------------
     */
     'notification_times' => [
@@ -147,4 +149,3 @@ return [
         'evening' => '19:00',
     ],
 ];
-

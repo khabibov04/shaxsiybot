@@ -2,8 +2,8 @@
 
 namespace App\Services\Telegram\Handlers;
 
-use App\Models\TelegramUser;
 use App\Models\ChatHistory;
+use App\Models\TelegramUser;
 use App\Services\Telegram\TelegramBotService;
 use Illuminate\Support\Facades\Http;
 
@@ -18,80 +18,155 @@ class AIHandler
 
     public function showAIMenu(TelegramUser $user): void
     {
-        $message = "🤖 <b>AI Assistant</b>\n\n" .
-            "I can help you with:\n\n" .
-            "📋 <b>Tasks:</b> \"What's my most important task today?\"\n" .
-            "💰 <b>Finance:</b> \"How much did I spend on food this month?\"\n" .
-            "📊 <b>Analysis:</b> \"Why is my spending increasing?\"\n" .
-            "💡 <b>Advice:</b> \"How can I save more money?\"\n" .
-            "📅 <b>Planning:</b> \"Help me plan my week\"\n\n" .
-            "Just type your question or choose an option:";
+        $message = "🤖 <b>AI Yordamchi</b>\n\n" .
+            "Men sizga quyidagilarni tahlil qilishda yordam beraman:\n\n" .
+            "📊 Vazifalar samaradorligini tahlil qilish\n" .
+            "💰 Moliyaviy holatni baholash\n" .
+            "🎯 Shaxsiy maslahatlar berish\n" .
+            "💡 Yaxshilash tavsiyalari\n\n" .
+            "Tanlang yoki to'g'ridan-to'g'ri savol yozing:";
 
         $keyboard = [
             [
-                ['text' => '📋 Task Analysis', 'callback_data' => 'ai_task_analysis'],
-                ['text' => '💰 Finance Analysis', 'callback_data' => 'ai_finance_analysis'],
+                ['text' => '📊 Vazifa tahlili', 'callback_data' => 'ai_analyze:tasks'],
+                ['text' => '💰 Moliya tahlili', 'callback_data' => 'ai_analyze:finance'],
             ],
             [
-                ['text' => '📊 Weekly Report', 'callback_data' => 'ai_weekly_report'],
-                ['text' => '💡 Get Recommendations', 'callback_data' => 'ai_recommendations'],
+                ['text' => '📈 Progress ko\'rish', 'callback_data' => 'ai_analyze:progress'],
+                ['text' => '💡 Maslahatlar', 'callback_data' => 'ai_analyze:tips'],
             ],
             [
-                ['text' => '🔙 Back to Menu', 'callback_data' => 'main_menu'],
+                ['text' => '💬 Savol berish', 'callback_data' => 'ai_chat:start'],
+            ],
+            [
+                ['text' => '🔙 Orqaga', 'callback_data' => 'main_menu'],
             ],
         ];
 
         $this->bot->sendMessageWithInlineKeyboard($user->telegram_id, $message, $keyboard);
     }
 
-    public function startChat(TelegramUser $user, string $question = ''): void
+    public function startChat(TelegramUser $user, string $initialQuestion = ''): void
     {
-        if (empty($question)) {
-            $user->setState('ai_chat', []);
-            $this->bot->sendMessage(
-                $user->telegram_id,
-                "🤖 <b>AI Assistant</b>\n\n" .
-                "What would you like to know? Ask me anything about your tasks, finances, or goals.\n\n" .
-                "Type /cancel to exit chat mode."
-            );
+        $user->setState('ai_chat');
+
+        if ($initialQuestion) {
+            $this->processChat($user, $initialQuestion);
             return;
         }
 
-        $this->processAIQuery($user, $question);
+        $this->bot->sendMessage(
+            $user->telegram_id,
+            "💬 <b>AI Suhbat</b>\n\n" .
+            "Savolingizni yozing. Men sizga yordam berishga tayyorman!\n\n" .
+            "Suhbatni tugatish uchun /bekor yozing."
+        );
     }
 
-    public function analyzeMessage(TelegramUser $user, string $message): void
-    {
-        // Analyze intent
-        $intent = $this->detectIntent($message);
-
-        match ($intent) {
-            'task_query' => $this->handleTaskQuery($user, $message),
-            'finance_query' => $this->handleFinanceQuery($user, $message),
-            'debt_query' => $this->handleDebtQuery($user, $message),
-            'advice' => $this->handleAdviceRequest($user, $message),
-            default => $this->processAIQuery($user, $message),
-        };
-    }
-
-    public function processAIQuery(TelegramUser $user, string $query): void
+    public function analyzeMessage(TelegramUser $user, string $text): void
     {
         $this->bot->sendChatAction($user->telegram_id, 'typing');
 
-        // Build context from user data
-        $context = $this->buildUserContext($user);
+        // Check if it's a quick expense format
+        if (preg_match('/^(\d+)\s+(.+)$/u', $text, $matches)) {
+            return; // This will be handled by FinanceHandler
+        }
 
-        // Store user message
+        // Simple intent detection
+        $lowerText = mb_strtolower($text);
+        
+        $intents = [
+            'greeting' => ['salom', 'hello', 'hi', 'assalomu', 'привет'],
+            'help' => ['yordam', 'help', 'nima qila', 'qanday'],
+            'task' => ['vazifa', 'reja', 'topshiriq', 'qilish kerak'],
+            'money' => ['pul', 'moliya', 'xarajat', 'daromad', 'balans'],
+            'debt' => ['qarz', 'qarzdor', 'berish', 'olish'],
+            'thanks' => ['rahmat', 'tashakkur', 'thanks', 'спасибо'],
+        ];
+
+        $detectedIntent = null;
+        foreach ($intents as $intent => $keywords) {
+            foreach ($keywords as $keyword) {
+                if (str_contains($lowerText, $keyword)) {
+                    $detectedIntent = $intent;
+                    break 2;
+                }
+            }
+        }
+
+        $response = match ($detectedIntent) {
+            'greeting' => "Salom! 👋 Sizga qanday yordam bera olaman?\n\n" .
+                "📋 Vazifalar bilan ishlash\n" .
+                "💰 Moliya hisobi\n" .
+                "💳 Qarzlarni boshqarish\n\n" .
+                "Menyudan tanlang yoki savol yozing!",
+            
+            'help' => "Yordam kerakmi? Mana asosiy buyruqlar:\n\n" .
+                "/vazifa - Yangi vazifa qo'shish\n" .
+                "/bugun - Bugungi vazifalar\n" .
+                "/balans - Moliyaviy holat\n" .
+                "/qarzlar - Qarzlar ro'yxati\n" .
+                "/yordam - To'liq yordam",
+            
+            'task' => "Vazifa bilan bog'liq savol bo'lsa:\n\n" .
+                "➕ Yangi vazifa: /vazifa\n" .
+                "📋 Bugungilar: /bugun\n" .
+                "📅 Haftalik: /hafta\n\n" .
+                "Yoki '📋 Vazifalar' tugmasini bosing!",
+            
+            'money' => "Moliya bilan yordam kerakmi?\n\n" .
+                "💵 Daromad qo'shish: /daromad\n" .
+                "💸 Xarajat qo'shish: /xarajat\n" .
+                "📊 Balans ko'rish: /balans\n\n" .
+                "Tez xarajat qo'shish: <code>50000 ovqat</code>",
+            
+            'debt' => "Qarzlar bilan ishlamoqchimisiz?\n\n" .
+                "📤 Qarz berdim\n" .
+                "📥 Qarz oldim\n" .
+                "📋 Faol qarzlar: /qarzlar\n\n" .
+                "'💳 Qarzlar' menyusini oching!",
+            
+            'thanks' => "Arzimaydi! 😊 Yana yordam kerak bo'lsa, yozing!",
+            
+            default => $this->generateSmartResponse($user, $text),
+        };
+
+        $this->bot->sendMessage($user->telegram_id, $response);
+
+        // Save to chat history
         ChatHistory::create([
             'telegram_user_id' => $user->id,
             'role' => 'user',
-            'message' => $query,
+            'message' => $text,
         ]);
 
-        // Generate response
-        $response = $this->generateAIResponse($user, $query, $context);
+        ChatHistory::create([
+            'telegram_user_id' => $user->id,
+            'role' => 'assistant',
+            'message' => $response,
+        ]);
+    }
 
-        // Store AI response
+    public function processChat(TelegramUser $user, string $text): void
+    {
+        $this->bot->sendChatAction($user->telegram_id, 'typing');
+
+        // Get recent chat history
+        $history = ChatHistory::where('telegram_user_id', $user->id)
+            ->orderBy('created_at', 'desc')
+            ->limit(10)
+            ->get()
+            ->reverse();
+
+        $response = $this->generateSmartResponse($user, $text, $history);
+
+        // Save to history
+        ChatHistory::create([
+            'telegram_user_id' => $user->id,
+            'role' => 'user',
+            'message' => $text,
+        ]);
+
         ChatHistory::create([
             'telegram_user_id' => $user->id,
             'role' => 'assistant',
@@ -101,350 +176,353 @@ class AIHandler
         $this->bot->sendMessage($user->telegram_id, $response);
     }
 
-    protected function detectIntent(string $message): string
+    protected function generateSmartResponse(TelegramUser $user, string $text, $history = null): string
     {
-        $message = mb_strtolower($message);
-
-        $taskKeywords = ['task', 'todo', 'do today', 'plan', 'important', 'priority', 'deadline'];
-        $financeKeywords = ['spend', 'expense', 'income', 'money', 'budget', 'balance', 'save', 'cost'];
-        $debtKeywords = ['debt', 'owe', 'lend', 'borrow', 'pay back'];
-        $adviceKeywords = ['advice', 'recommend', 'suggest', 'help', 'how can i', 'should i'];
-
-        foreach ($taskKeywords as $keyword) {
-            if (str_contains($message, $keyword)) {
-                return 'task_query';
-            }
-        }
-
-        foreach ($financeKeywords as $keyword) {
-            if (str_contains($message, $keyword)) {
-                return 'finance_query';
-            }
-        }
-
-        foreach ($debtKeywords as $keyword) {
-            if (str_contains($message, $keyword)) {
-                return 'debt_query';
-            }
-        }
-
-        foreach ($adviceKeywords as $keyword) {
-            if (str_contains($message, $keyword)) {
-                return 'advice';
-            }
-        }
-
-        return 'general';
-    }
-
-    protected function handleTaskQuery(TelegramUser $user, string $query): void
-    {
-        $tasks = $user->tasks()->pending()->orderBy('date')->get();
-        $todayTasks = $tasks->where('date', today());
-        $highPriority = $tasks->where('priority', 'high');
-        $overdue = $tasks->filter(fn($t) => $t->isOverdue());
-
-        $response = "📋 <b>Task Analysis</b>\n\n";
-
-        if ($highPriority->isNotEmpty()) {
-            $response .= "🔴 <b>High Priority Tasks:</b>\n";
-            foreach ($highPriority->take(3) as $task) {
-                $response .= "• {$task->title}";
-                if ($task->date) {
-                    $response .= " (due: {$task->date->format('M j')})";
+        // Try OpenAI if configured
+        $apiKey = config('telegram.openai_api_key');
+        
+        if ($apiKey) {
+            try {
+                $response = $this->callOpenAI($user, $text, $history, $apiKey);
+                if ($response) {
+                    return $response;
                 }
-                $response .= "\n";
+            } catch (\Exception $e) {
+                // Fall through to basic response
             }
-            $response .= "\n";
         }
 
-        if ($todayTasks->isNotEmpty()) {
-            $response .= "📅 <b>Today's Tasks:</b> {$todayTasks->count()}\n";
-            foreach ($todayTasks->take(3) as $task) {
-                $response .= "• {$task->getPriorityEmoji()} {$task->title}\n";
-            }
-            $response .= "\n";
-        }
-
-        if ($overdue->isNotEmpty()) {
-            $response .= "⚠️ <b>Overdue:</b> {$overdue->count()} tasks\n\n";
-        }
-
-        // AI recommendation
-        $response .= "💡 <b>Recommendation:</b>\n";
-        if ($highPriority->isNotEmpty()) {
-            $mostImportant = $highPriority->first();
-            $response .= "Focus on \"{$mostImportant->title}\" first - it's high priority";
-            if ($mostImportant->date?->isToday()) {
-                $response .= " and due today";
-            }
-            $response .= ".";
-        } elseif ($todayTasks->isNotEmpty()) {
-            $response .= "You have {$todayTasks->count()} tasks for today. Start with the morning to tackle difficult ones when your energy is highest.";
-        } else {
-            $response .= "No urgent tasks! Consider planning ahead or reviewing your goals.";
-        }
-
-        $this->bot->sendMessage($user->telegram_id, $response);
+        // Basic smart response without AI
+        return $this->getBasicResponse($user, $text);
     }
 
-    protected function handleFinanceQuery(TelegramUser $user, string $query): void
+    protected function callOpenAI(TelegramUser $user, string $text, $history, string $apiKey): ?string
     {
-        $todayExpense = $user->getTodayExpenses();
-        $monthExpense = $user->getMonthExpenses();
-        $balance = $user->getBalance();
+        $systemPrompt = "Sen shaxsiy yordamchi botsanva o'zbek tilida javob berasaning. " .
+            "Foydalanuvchining vazifalarini boshqarish, moliyasini kuzatish va qarzlarini " .
+            "nazorat qilishda yordam berasaning. Qisqa, aniq va foydali javoblar bering.";
 
-        // Category breakdown
-        $categories = $user->transactions()
+        $messages = [
+            ['role' => 'system', 'content' => $systemPrompt],
+        ];
+
+        if ($history) {
+            foreach ($history as $msg) {
+                $messages[] = [
+                    'role' => $msg->role,
+                    'content' => $msg->message,
+                ];
+            }
+        }
+
+        $messages[] = ['role' => 'user', 'content' => $text];
+
+        $response = Http::withHeaders([
+            'Authorization' => "Bearer {$apiKey}",
+            'Content-Type' => 'application/json',
+        ])->post('https://api.openai.com/v1/chat/completions', [
+            'model' => 'gpt-3.5-turbo',
+            'messages' => $messages,
+            'max_tokens' => 500,
+            'temperature' => 0.7,
+        ]);
+
+        if ($response->successful()) {
+            $data = $response->json();
+            return $data['choices'][0]['message']['content'] ?? null;
+        }
+
+        return null;
+    }
+
+    protected function getBasicResponse(TelegramUser $user, string $text): string
+    {
+        // Gather user context
+        $todayTasks = $user->tasks()->forToday()->pending()->count();
+        $balance = $user->getBalance();
+        $activeDebts = $user->debts()->active()->count();
+
+        $context = [];
+        
+        if ($todayTasks > 0) {
+            $context[] = "📋 Bugun {$todayTasks} ta bajarilmagan vazifangiz bor";
+        }
+        
+        if ($balance < 0) {
+            $context[] = "⚠️ Balans manfiy: " . number_format($balance, 0, '.', ' ') . " so'm";
+        }
+        
+        if ($activeDebts > 0) {
+            $context[] = "💳 {$activeDebts} ta faol qarzingiz bor";
+        }
+
+        $contextText = !empty($context) 
+            ? "\n\n<b>Joriy holat:</b>\n" . implode("\n", $context)
+            : "";
+
+        return "🤖 Savolingizni tushundim!\n\n" .
+            "Hozircha men oddiy savollarga javob beraman. " .
+            "Aniqroq yordam uchun menyudan kerakli bo'limni tanlang." .
+            $contextText . "\n\n" .
+            "💡 Maslahat: /yordam buyrug'i orqali barcha imkoniyatlarni ko'ring!";
+    }
+
+    public function analyzeUserData(TelegramUser $user, string $type, ?int $messageId = null): void
+    {
+        $this->bot->sendChatAction($user->telegram_id, 'typing');
+
+        $message = match ($type) {
+            'tasks' => $this->analyzeTasksData($user),
+            'finance' => $this->analyzeFinanceData($user),
+            'progress' => $this->analyzeProgressData($user),
+            'tips' => $this->generateTips($user),
+            default => "Noma'lum tahlil turi.",
+        };
+
+        if ($messageId) {
+            $this->bot->editMessage($user->telegram_id, $messageId, $message);
+        } else {
+            $this->bot->sendMessage($user->telegram_id, $message);
+        }
+    }
+
+    protected function analyzeTasksData(TelegramUser $user): string
+    {
+        $totalTasks = $user->tasks()->count();
+        $completedTasks = $user->tasks()->completed()->count();
+        $pendingTasks = $user->tasks()->pending()->count();
+        
+        $thisWeekTasks = $user->tasks()->forWeek()->get();
+        $weekCompleted = $thisWeekTasks->where('status', 'completed')->count();
+        $weekTotal = $thisWeekTasks->count();
+
+        $avgRating = $user->tasks()->whereNotNull('rating')->avg('rating') ?? 0;
+
+        $completionRate = $totalTasks > 0 ? round(($completedTasks / $totalTasks) * 100) : 0;
+
+        $message = "📊 <b>Vazifa tahlili</b>\n\n";
+        
+        $message .= "<b>Umumiy statistika:</b>\n";
+        $message .= "📋 Jami vazifalar: {$totalTasks}\n";
+        $message .= "✅ Bajarilgan: {$completedTasks} ({$completionRate}%)\n";
+        $message .= "⏳ Kutilayotgan: {$pendingTasks}\n";
+        $message .= "⭐ O'rtacha baho: " . round($avgRating, 1) . "/5\n\n";
+
+        $message .= "<b>Shu hafta:</b>\n";
+        $weekRate = $weekTotal > 0 ? round(($weekCompleted / $weekTotal) * 100) : 0;
+        $message .= "📅 Vazifalar: {$weekCompleted}/{$weekTotal} ({$weekRate}%)\n\n";
+
+        // Category analysis
+        $byCategory = $user->tasks()->completed()
+            ->selectRaw('category, COUNT(*) as count')
+            ->groupBy('category')
+            ->orderByDesc('count')
+            ->limit(3)
+            ->get();
+
+        if ($byCategory->isNotEmpty()) {
+            $categories = config('telegram.task_categories');
+            $message .= "<b>Eng ko'p bajarilgan kategoriyalar:</b>\n";
+            foreach ($byCategory as $cat) {
+                $label = $categories[$cat->category] ?? $cat->category;
+                $message .= "• {$label}: {$cat->count} ta\n";
+            }
+        }
+
+        // Recommendations
+        $message .= "\n<b>💡 Tavsiyalar:</b>\n";
+        
+        if ($completionRate < 50) {
+            $message .= "• Vazifalarni kichikroq bo'laklarga bo'ling\n";
+            $message .= "• Muhimlik darajasini to'g'ri belgilang\n";
+        } elseif ($completionRate < 80) {
+            $message .= "• Yaxshi natija! Seriyani davom ettiring\n";
+            $message .= "• Qiyinroq vazifalarni ertalab bajaring\n";
+        } else {
+            $message .= "• Ajoyib samaradorlik! 🎉\n";
+            $message .= "• Yangi maqsadlar qo'ying\n";
+        }
+
+        return $message;
+    }
+
+    protected function analyzeFinanceData(TelegramUser $user): string
+    {
+        $totalIncome = $user->transactions()->income()->sum('amount');
+        $totalExpense = $user->transactions()->expense()->sum('amount');
+        $balance = $totalIncome - $totalExpense;
+
+        $monthIncome = $user->transactions()->income()->forMonth()->sum('amount');
+        $monthExpense = $user->transactions()->expense()->forMonth()->sum('amount');
+
+        $savingsRate = $totalIncome > 0 
+            ? round((($totalIncome - $totalExpense) / $totalIncome) * 100) 
+            : 0;
+
+        $message = "💰 <b>Moliya tahlili</b>\n\n";
+
+        $message .= "<b>Umumiy holat:</b>\n";
+        $message .= "💵 Jami daromad: " . number_format($totalIncome, 0, '.', ' ') . " so'm\n";
+        $message .= "💸 Jami xarajat: " . number_format($totalExpense, 0, '.', ' ') . " so'm\n";
+        $balanceEmoji = $balance >= 0 ? '💚' : '❤️';
+        $message .= "{$balanceEmoji} Balans: " . number_format($balance, 0, '.', ' ') . " so'm\n";
+        $message .= "📊 Tejash darajasi: {$savingsRate}%\n\n";
+
+        $message .= "<b>Shu oy:</b>\n";
+        $message .= "💵 Daromad: " . number_format($monthIncome, 0, '.', ' ') . " so'm\n";
+        $message .= "💸 Xarajat: " . number_format($monthExpense, 0, '.', ' ') . " so'm\n";
+        $monthDiff = $monthIncome - $monthExpense;
+        $diffEmoji = $monthDiff >= 0 ? '📈' : '📉';
+        $message .= "{$diffEmoji} Farq: " . number_format($monthDiff, 0, '.', ' ') . " so'm\n\n";
+
+        // Top expense categories
+        $topExpenses = $user->transactions()
             ->expense()
             ->forMonth()
             ->selectRaw('category, SUM(amount) as total')
             ->groupBy('category')
             ->orderByDesc('total')
+            ->limit(3)
             ->get();
 
-        $response = "💰 <b>Financial Analysis</b>\n\n";
-
-        $response .= "📊 <b>Overview:</b>\n";
-        $response .= "• Balance: \$" . number_format($balance, 2) . "\n";
-        $response .= "• Today's spending: \$" . number_format($todayExpense, 2) . "\n";
-        $response .= "• Month's spending: \$" . number_format($monthExpense, 2) . "\n\n";
-
-        if ($categories->isNotEmpty()) {
-            $response .= "📁 <b>Top Categories:</b>\n";
-            $expenseCategories = config('telegram.expense_categories');
-            foreach ($categories->take(3) as $cat) {
-                $label = $expenseCategories[$cat->category] ?? $cat->category;
-                $response .= "• {$label}: \$" . number_format($cat->total, 2) . "\n";
-            }
-            $response .= "\n";
-        }
-
-        // Budget check
-        if ($user->monthly_budget_limit) {
-            $remaining = $user->monthly_budget_limit - $monthExpense;
-            $percentage = round(($monthExpense / $user->monthly_budget_limit) * 100);
-            
-            $response .= "📈 <b>Budget Status:</b>\n";
-            $response .= "• Used: {$percentage}% of monthly budget\n";
-            
-            if ($remaining > 0) {
-                $daysLeft = now()->daysInMonth - now()->day;
-                $dailyBudget = $daysLeft > 0 ? $remaining / $daysLeft : 0;
-                $response .= "• Remaining: \$" . number_format($remaining, 2) . "\n";
-                $response .= "• Daily budget: \$" . number_format($dailyBudget, 2) . "/day\n";
-            } else {
-                $response .= "• ⚠️ Over budget by \$" . number_format(abs($remaining), 2) . "\n";
+        if ($topExpenses->isNotEmpty()) {
+            $categories = config('telegram.expense_categories');
+            $message .= "<b>Eng katta xarajat kategoriyalari:</b>\n";
+            foreach ($topExpenses as $exp) {
+                $label = $categories[$exp->category] ?? $exp->category;
+                $message .= "• {$label}: " . number_format($exp->total, 0, '.', ' ') . " so'm\n";
             }
         }
 
-        $response .= "\n💡 <b>Tip:</b> ";
-        if ($categories->isNotEmpty()) {
-            $topCategory = $categories->first();
-            $response .= "Your highest spending is on " . ($expenseCategories[$topCategory->category] ?? $topCategory->category) . 
-                ". Consider setting a specific limit for this category.";
-        } else {
-            $response .= "Start tracking your expenses to get personalized insights!";
-        }
-
-        $this->bot->sendMessage($user->telegram_id, $response);
-    }
-
-    protected function handleDebtQuery(TelegramUser $user, string $query): void
-    {
-        $givenDebts = $user->debts()->given()->active()->get();
-        $receivedDebts = $user->debts()->received()->active()->get();
-        $overdueDebts = $user->debts()->overdue()->get();
-
-        $givenTotal = $givenDebts->sum('amount') - $givenDebts->sum('amount_paid');
-        $receivedTotal = $receivedDebts->sum('amount') - $receivedDebts->sum('amount_paid');
-
-        $response = "💳 <b>Debt Analysis</b>\n\n";
-
-        $response .= "📤 <b>Money owed to you:</b> \$" . number_format($givenTotal, 2) . "\n";
-        if ($givenDebts->isNotEmpty()) {
-            foreach ($givenDebts->take(3) as $debt) {
-                $response .= "   • {$debt->person_name}: {$debt->getFormattedRemainingAmount()}\n";
-            }
-        }
-
-        $response .= "\n📥 <b>Money you owe:</b> \$" . number_format($receivedTotal, 2) . "\n";
-        if ($receivedDebts->isNotEmpty()) {
-            foreach ($receivedDebts->take(3) as $debt) {
-                $response .= "   • {$debt->person_name}: {$debt->getFormattedRemainingAmount()}\n";
-            }
-        }
-
-        if ($overdueDebts->isNotEmpty()) {
-            $response .= "\n⚠️ <b>Overdue:</b> {$overdueDebts->count()} debts\n";
-        }
-
-        $response .= "\n💡 <b>Recommendation:</b> ";
-        if ($overdueDebts->isNotEmpty()) {
-            $response .= "You have overdue debts. Consider sending reminders or making payments to avoid complications.";
-        } elseif ($receivedTotal > $givenTotal) {
-            $response .= "Focus on paying off your debts to improve your financial position.";
-        } else {
-            $response .= "Your debt situation looks good! Keep tracking and follow up on money owed to you.";
-        }
-
-        $this->bot->sendMessage($user->telegram_id, $response);
-    }
-
-    protected function handleAdviceRequest(TelegramUser $user, string $query): void
-    {
-        $context = $this->buildUserContext($user);
+        $message .= "\n<b>💡 Tavsiyalar:</b>\n";
         
-        $response = "💡 <b>Personalized Recommendations</b>\n\n";
+        if ($savingsRate < 10) {
+            $message .= "• Xarajatlarni qisqartiring\n";
+            $message .= "• Byudjet rejasi tuzing\n";
+        } elseif ($savingsRate < 20) {
+            $message .= "• Yaxshi natija! 20%ga yetishga harakat qiling\n";
+        } else {
+            $message .= "• Ajoyib tejash ko'rsatkichi! 🎉\n";
+            $message .= "• Investitsiya qilishni o'ylab ko'ring\n";
+        }
 
-        // Task advice
-        $pendingTasks = $user->tasks()->pending()->count();
-        $completionRate = $user->tasks_completed > 0 
-            ? round(($user->tasks()->completed()->count() / $user->tasks()->count()) * 100) 
+        return $message;
+    }
+
+    protected function analyzeProgressData(TelegramUser $user): string
+    {
+        $badge = $user->getBadgeInfo();
+        
+        $message = "📈 <b>Umumiy progress</b>\n\n";
+
+        $message .= "<b>🎮 O'yin statistikasi:</b>\n";
+        $message .= "Daraja: {$badge['name']}\n";
+        $message .= "Ball: {$user->total_points}\n";
+        $message .= "Seriya: {$user->streak_days} kun 🔥\n";
+        $message .= "Vazifalar: {$user->tasks_completed} ta bajarildi\n\n";
+
+        // Next badge
+        $nextBadge = $user->getNextBadge();
+        if ($nextBadge) {
+            $pointsNeeded = $nextBadge['points'] - $user->total_points;
+            $message .= "<b>Keyingi daraja:</b> {$nextBadge['name']}\n";
+            $message .= "Kerak ball: {$pointsNeeded}\n\n";
+        }
+
+        // Achievements
+        $achievements = $user->achievements()->count();
+        $totalAchievements = count(\App\Models\UserAchievement::getAvailableAchievements());
+        $message .= "<b>🏆 Yutuqlar:</b> {$achievements}/{$totalAchievements}\n\n";
+
+        // Weekly comparison
+        $thisWeekTasks = $user->tasks()
+            ->whereBetween('completed_at', [now()->startOfWeek(), now()->endOfWeek()])
+            ->count();
+        
+        $lastWeekTasks = $user->tasks()
+            ->whereBetween('completed_at', [now()->subWeek()->startOfWeek(), now()->subWeek()->endOfWeek()])
+            ->count();
+
+        $weekChange = $lastWeekTasks > 0 
+            ? round((($thisWeekTasks - $lastWeekTasks) / $lastWeekTasks) * 100) 
             : 0;
 
-        $response .= "<b>📋 Tasks:</b>\n";
-        if ($completionRate < 50) {
-            $response .= "• Your completion rate is {$completionRate}%. Try breaking tasks into smaller subtasks.\n";
-        } elseif ($completionRate > 80) {
-            $response .= "• Excellent {$completionRate}% completion rate! Keep up the great work.\n";
-        }
-        
-        if ($pendingTasks > 10) {
-            $response .= "• You have {$pendingTasks} pending tasks. Consider prioritizing and delegating.\n";
+        $changeEmoji = $weekChange >= 0 ? '📈' : '📉';
+        $message .= "<b>Haftalik taqqoslash:</b>\n";
+        $message .= "Shu hafta: {$thisWeekTasks} ta vazifa\n";
+        $message .= "O'tgan hafta: {$lastWeekTasks} ta vazifa\n";
+        $message .= "{$changeEmoji} O'zgarish: {$weekChange}%";
+
+        return $message;
+    }
+
+    protected function generateTips(TelegramUser $user): string
+    {
+        $tips = [];
+
+        // Task-based tips
+        $pendingHighPriority = $user->tasks()
+            ->pending()
+            ->where('priority', 'high')
+            ->count();
+
+        if ($pendingHighPriority > 3) {
+            $tips[] = "🔴 {$pendingHighPriority} ta muhim vazifa kutilmoqda. Avval ularni bajaring!";
         }
 
-        $response .= "\n<b>💰 Finance:</b>\n";
-        $monthExpense = $user->getMonthExpenses();
-        $lastMonthExpense = $user->transactions()
+        // Finance-based tips
+        $todayExpense = $user->getTodayExpenses();
+        $avgDailyExpense = $user->transactions()
             ->expense()
-            ->whereMonth('date', now()->subMonth()->month)
-            ->sum('amount');
+            ->forMonth()
+            ->avg('amount') ?? 0;
 
-        if ($lastMonthExpense > 0 && $monthExpense > $lastMonthExpense * 1.2) {
-            $increase = round((($monthExpense - $lastMonthExpense) / $lastMonthExpense) * 100);
-            $response .= "• Spending increased by {$increase}% this month. Review your expenses.\n";
+        if ($todayExpense > $avgDailyExpense * 1.5) {
+            $tips[] = "💸 Bugungi xarajat o'rtachadan yuqori. Ehtiyot bo'ling!";
         }
 
-        if (!$user->monthly_budget_limit) {
-            $response .= "• Set a monthly budget to better control your spending.\n";
+        // Debt-based tips
+        $overdueDebts = $user->debts()->overdue()->count();
+        if ($overdueDebts > 0) {
+            $tips[] = "⏰ {$overdueDebts} ta qarzning muddati o'tgan. Tezroq hal qiling!";
         }
 
-        $response .= "\n<b>🎯 Goals:</b>\n";
-        $response .= "• Maintain your {$user->streak_days}-day streak to build strong habits.\n";
-        
-        $nextBadge = $this->getNextBadgeProgress($user);
-        if ($nextBadge) {
-            $response .= "• {$nextBadge}\n";
+        // Streak tips
+        if ($user->streak_days >= 7) {
+            $tips[] = "🔥 {$user->streak_days} kunlik seriya! Davom eting!";
         }
 
-        $this->bot->sendMessage($user->telegram_id, $response);
-    }
+        // Budget tips
+        if ($user->monthly_budget_limit) {
+            $monthExpense = $user->getMonthExpenses();
+            $remaining = $user->monthly_budget_limit - $monthExpense;
+            $daysLeft = now()->daysInMonth - now()->day;
+            
+            if ($remaining > 0 && $daysLeft > 0) {
+                $dailyBudget = round($remaining / $daysLeft);
+                $tips[] = "💰 Kunlik byudjet: " . number_format($dailyBudget, 0, '.', ' ') . " so'm ({$daysLeft} kun qoldi)";
+            }
+        }
 
-    protected function buildUserContext(TelegramUser $user): array
-    {
-        return [
-            'user_name' => $user->getDisplayName(),
-            'tasks_pending' => $user->tasks()->pending()->count(),
-            'tasks_today' => $user->tasks()->forToday()->count(),
-            'tasks_completed_total' => $user->tasks_completed,
-            'streak_days' => $user->streak_days,
-            'total_points' => $user->total_points,
-            'balance' => $user->getBalance(),
-            'month_expenses' => $user->getMonthExpenses(),
-            'active_debts_given' => $user->getActiveDebtsTotal('given'),
-            'active_debts_received' => $user->getActiveDebtsTotal('received'),
-            'budget_limit' => $user->monthly_budget_limit,
+        // General tips
+        $generalTips = [
+            "💡 Ertalab eng qiyin vazifalarni bajaring - energiya yuqori",
+            "💡 Har kuni kechqurun ertangi kunni rejalashtiring",
+            "💡 Kichik vazifalarni darhol bajaring (2 daqiqa qoidasi)",
+            "💡 Xarajatlarni darhol yozib boring",
+            "💡 Haftalik maqsadlar qo'ying va kuzating",
         ];
-    }
 
-    protected function generateAIResponse(TelegramUser $user, string $query, array $context): string
-    {
-        $apiKey = config('telegram.openai_api_key');
-
-        if (!$apiKey) {
-            // Fallback to rule-based responses
-            return $this->generateFallbackResponse($query, $context);
+        if (count($tips) < 3) {
+            $tips = array_merge($tips, array_slice($generalTips, 0, 3 - count($tips)));
         }
 
-        try {
-            $systemPrompt = "You are a helpful personal assistant for task and finance management. " .
-                "Be concise, friendly, and actionable. Use emojis sparingly. " .
-                "Here's the user's context: " . json_encode($context);
-
-            $response = Http::withHeaders([
-                'Authorization' => "Bearer {$apiKey}",
-                'Content-Type' => 'application/json',
-            ])->post('https://api.openai.com/v1/chat/completions', [
-                'model' => 'gpt-3.5-turbo',
-                'messages' => [
-                    ['role' => 'system', 'content' => $systemPrompt],
-                    ['role' => 'user', 'content' => $query],
-                ],
-                'max_tokens' => 500,
-                'temperature' => 0.7,
-            ]);
-
-            if ($response->successful()) {
-                $data = $response->json();
-                return $data['choices'][0]['message']['content'] ?? $this->generateFallbackResponse($query, $context);
-            }
-        } catch (\Exception $e) {
-            // Log error and fall back
+        $message = "💡 <b>Sizga maslahatlar</b>\n\n";
+        
+        foreach ($tips as $tip) {
+            $message .= "{$tip}\n\n";
         }
 
-        return $this->generateFallbackResponse($query, $context);
-    }
-
-    protected function generateFallbackResponse(string $query, array $context): string
-    {
-        $query = mb_strtolower($query);
-
-        if (str_contains($query, 'important') || str_contains($query, 'priority')) {
-            return "📋 Based on your data:\n\n" .
-                "You have {$context['tasks_today']} tasks for today.\n" .
-                "Focus on high-priority tasks first, especially in the morning when your energy is highest.\n\n" .
-                "💡 Tip: Use the /today command to see all today's tasks.";
-        }
-
-        if (str_contains($query, 'spend') || str_contains($query, 'expense')) {
-            $spent = number_format($context['month_expenses'], 2);
-            return "💰 This month you've spent \${$spent}.\n\n" .
-                ($context['budget_limit'] 
-                    ? "Your budget limit is \${$context['budget_limit']}."
-                    : "Consider setting a monthly budget to track your spending better.");
-        }
-
-        if (str_contains($query, 'balance')) {
-            return "💵 Your current balance is \$" . number_format($context['balance'], 2) . ".\n\n" .
-                "Use /balance for a detailed breakdown.";
-        }
-
-        return "🤖 I understand you're asking about \"{$query}\".\n\n" .
-            "Here's what I can help with:\n" .
-            "• Task management and planning\n" .
-            "• Expense and income tracking\n" .
-            "• Debt management\n" .
-            "• Personalized recommendations\n\n" .
-            "Try asking something like:\n" .
-            "• \"What should I focus on today?\"\n" .
-            "• \"How much did I spend this month?\"\n" .
-            "• \"Give me financial advice\"";
-    }
-
-    protected function getNextBadgeProgress(TelegramUser $user): ?string
-    {
-        $badges = config('telegram.gamification.badges');
-        $currentPoints = $user->total_points;
-
-        foreach ($badges as $key => $badge) {
-            if ($badge['points'] > $currentPoints) {
-                $needed = $badge['points'] - $currentPoints;
-                return "Earn {$needed} more points to unlock {$badge['name']}!";
-            }
-        }
-
-        return null;
+        return $message;
     }
 }
-
