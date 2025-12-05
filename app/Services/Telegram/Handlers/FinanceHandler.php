@@ -43,38 +43,92 @@ class FinanceHandler
 
     public function quickExpense(TelegramUser $user, float $amount, string $note): void
     {
-        $categorization = Transaction::autoCategorize($note);
+        $category = $this->autoCategorize($note, 'expense');
 
         $transaction = Transaction::create([
             'telegram_user_id' => $user->id,
             'type' => 'expense',
             'amount' => $amount,
             'currency' => $user->currency,
-            'category' => $categorization['category'],
+            'category' => $category,
             'note' => $note,
             'date' => today(),
-            'auto_categorized' => true,
-            'category_confidence' => $categorization['confidence'],
         ]);
 
         $this->checkBudgetAlerts($user);
 
         $categories = config('telegram.expense_categories');
-        $categoryLabel = $categories[$transaction->category] ?? '📋 Boshqa';
+        $categoryLabel = isset($categories[$category]) ? $categories[$category] : '📋 Boshqa';
 
-        $message = "💸 <b>Xarajat qo'shildi!</b>\n\n" .
-            "💰 Summa: " . number_format($amount, 0, '.', ' ') . " so'm\n" .
-            "📁 Kategoriya: {$categoryLabel}\n" .
-            "📝 Izoh: {$note}\n" .
-            "📅 Sana: Bugun\n\n" .
-            "💡 Kategoriya avtomatik tanlandi. O'zgartirish uchun bosing:";
+        $message = "💸 <b>Xarajat saqlandi!</b>\n\n" .
+            "💰 " . number_format($amount, 0, '.', ' ') . " so'm\n" .
+            "📁 {$categoryLabel}\n" .
+            "📝 {$note}";
 
-        $keyboard = $this->bot->buildCategoryInlineKeyboard(
-            config('telegram.expense_categories'),
-            "tx_category:{$transaction->id}"
-        );
+        $this->bot->sendMessage($user->telegram_id, $message);
+    }
 
-        $this->bot->sendMessageWithInlineKeyboard($user->telegram_id, $message, $keyboard);
+    public function quickIncome(TelegramUser $user, float $amount, string $note): void
+    {
+        $category = $this->autoCategorize($note, 'income');
+
+        $transaction = Transaction::create([
+            'telegram_user_id' => $user->id,
+            'type' => 'income',
+            'amount' => $amount,
+            'currency' => $user->currency,
+            'category' => $category,
+            'note' => $note,
+            'date' => today(),
+        ]);
+
+        $categories = config('telegram.income_categories');
+        $categoryLabel = isset($categories[$category]) ? $categories[$category] : '📋 Boshqa';
+
+        $message = "💵 <b>Daromad saqlandi!</b>\n\n" .
+            "💰 +" . number_format($amount, 0, '.', ' ') . " so'm\n" .
+            "📁 {$categoryLabel}\n" .
+            "📝 {$note}";
+
+        $this->bot->sendMessage($user->telegram_id, $message);
+    }
+
+    /**
+     * Avtomatik kategoriya aniqlash
+     */
+    protected function autoCategorize(string $text, string $type): string
+    {
+        $text = mb_strtolower($text);
+        
+        if ($type === 'expense') {
+            $keywords = [
+                'food' => ['ovqat', 'tushlik', 'nonushta', 'kechki', 'choy', 'qahva', 'restoran', 'kafe', 'go\'sht', 'sabzavot', 'meva', 'bozor', 'market'],
+                'transport' => ['taxi', 'taksi', 'avtobus', 'metro', 'benzin', 'yoqilgi', 'mashina', 'yul', 'transport'],
+                'utilities' => ['gaz', 'svet', 'suv', 'elektr', 'kommunal', 'kvartplata', 'internet', 'telefon'],
+                'health' => ['dori', 'dorixona', 'shifokor', 'vrach', 'kasalxona', 'davolash', 'apteka'],
+                'entertainment' => ['kino', 'teatr', 'park', 'dam', 'o\'yin', 'sport', 'fitnes'],
+                'clothing' => ['kiyim', 'oyoq', 'poyabzal', 'ko\'ylak', 'shim', 'kurtka'],
+                'education' => ['kurs', 'kitob', 'o\'qish', 'talim', 'dars'],
+            ];
+        } else {
+            $keywords = [
+                'salary' => ['maosh', 'oylik', 'ish haqi', 'salary'],
+                'freelance' => ['frilanc', 'loyiha', 'buyurtma', 'freelance'],
+                'gift' => ['sovg\'a', 'hadya', 'gift'],
+                'bonus' => ['bonus', 'mukofot', 'premium'],
+                'business' => ['biznes', 'savdo', 'foyda', 'daromad'],
+            ];
+        }
+
+        foreach ($keywords as $category => $words) {
+            foreach ($words as $word) {
+                if (str_contains($text, $word)) {
+                    return $category;
+                }
+            }
+        }
+
+        return 'other';
     }
 
     public function showBalance(TelegramUser $user): void

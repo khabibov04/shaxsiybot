@@ -240,9 +240,9 @@ class TelegramBotService
     public function buildFinanceKeyboard(): array
     {
         return [
-            [['text' => '💵 Daromad qo\'shish'], ['text' => '💸 Xarajat qo\'shish']],
-            [['text' => '📊 Bugungi hisobot'], ['text' => '📈 Oylik hisobot']],
-            [['text' => '💱 Valyuta kursi'], ['text' => '📉 Tahlil']],
+            [['text' => '💰 Balans'], ['text' => '📊 Bugungi hisobot']],
+            [['text' => '📈 Oylik hisobot'], ['text' => '📉 Tahlil']],
+            [['text' => '💱 Valyuta kursi']],
             [['text' => '🔙 Orqaga']],
         ];
     }

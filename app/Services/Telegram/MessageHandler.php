@@ -187,8 +187,7 @@ class MessageHandler
             '🌙 Kechki xulosa' => $this->taskHandler->showEveningSummary($user),
 
             // Moliya menyusi
-            '💵 Daromad qo\'shish' => $this->financeHandler->startAddIncome($user),
-            '💸 Xarajat qo\'shish' => $this->financeHandler->startAddExpense($user),
+            '💰 Balans' => $this->financeHandler->showBalance($user),
             '📊 Bugungi hisobot' => $this->financeHandler->showTodayReport($user),
             '📈 Oylik hisobot' => $this->financeHandler->showMonthReport($user),
             '💱 Valyuta kursi' => $this->financeHandler->showCurrencyRates($user),
@@ -313,9 +312,27 @@ class MessageHandler
 
     protected function handleUnknownText(TelegramUser $user, string $text): void
     {
-        // Tez xarajat kiritish tekshiruvi (masalan, "50000 ovqat tushlik")
-        if (preg_match('/^(\d+(?:\.\d{2})?)\s+(.+)$/i', $text, $matches)) {
-            $this->financeHandler->quickExpense($user, (float)$matches[1], $matches[2]);
+        // Tez daromad kiritish: +50000 maosh
+        if (preg_match('/^\+\s*(\d+(?:[\.,]\d+)?)\s*(.*)$/u', $text, $matches)) {
+            $amount = (float)str_replace(',', '.', $matches[1]);
+            $note = trim($matches[2]) ?: 'Daromad';
+            $this->financeHandler->quickIncome($user, $amount, $note);
+            return;
+        }
+
+        // Tez xarajat kiritish: 50000 ovqat yoki -50000 ovqat
+        if (preg_match('/^-?\s*(\d+(?:[\.,]\d+)?)\s+(.+)$/u', $text, $matches)) {
+            $amount = (float)str_replace(',', '.', $matches[1]);
+            $note = trim($matches[2]);
+            $this->financeHandler->quickExpense($user, $amount, $note);
+            return;
+        }
+
+        // Faqat raqam + izoh (xarajat)
+        if (preg_match('/^(\d+(?:[\.,]\d+)?)\s+(.+)$/u', $text, $matches)) {
+            $amount = (float)str_replace(',', '.', $matches[1]);
+            $note = trim($matches[2]);
+            $this->financeHandler->quickExpense($user, $amount, $note);
             return;
         }
 
@@ -419,8 +436,11 @@ class MessageHandler
         $message = "💰 <b>Moliya</b>\n\n" .
             "💵 Balans: " . number_format($balance, 0, '.', ' ') . " so'm\n" .
             "📅 Bugungi xarajat: " . number_format($todayExpenses, 0, '.', ' ') . " so'm\n" .
-            "📆 Oylik xarajat: " . number_format($monthExpenses, 0, '.', ' ') . " so'm\n" .
-            "\nNima qilmoqchisiz?";
+            "📆 Oylik xarajat: " . number_format($monthExpenses, 0, '.', ' ') . " so'm\n\n" .
+            "━━━━━━━━━━━━━━━\n" .
+            "📝 <b>Tez kiritish:</b>\n" .
+            "💸 Xarajat: <code>50000 ovqat</code>\n" .
+            "💵 Daromad: <code>+1000000 maosh</code>";
 
         $this->bot->sendMessageWithKeyboard(
             $user->telegram_id,
