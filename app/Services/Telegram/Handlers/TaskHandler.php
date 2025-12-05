@@ -349,10 +349,13 @@ class TaskHandler
 
         $categories = config('telegram.task_categories');
         $priorities = ['high' => '🔴 Yuqori', 'medium' => '🟡 O\'rta', 'low' => '🟢 Past'];
+        
+        $categoryLabel = isset($categories[$task->category]) ? $categories[$task->category] : 'Boshqa';
+        $priorityLabel = isset($priorities[$task->priority]) ? $priorities[$task->priority] : '🟡 O\'rta';
 
         $message = "📝 <b>{$task->title}</b>\n\n";
-        $message .= "📁 {$categories[$task->category] ?? 'Boshqa'}\n";
-        $message .= "{$priorities[$task->priority]}\n";
+        $message .= "📁 {$categoryLabel}\n";
+        $message .= "{$priorityLabel}\n";
         $message .= "📅 {$task->date->format('d.m.Y')}\n";
         $message .= "📊 Holat: " . ($task->status === 'completed' ? '✅ Bajarildi' : '⏳ Kutilmoqda');
 
