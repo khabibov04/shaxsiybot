@@ -9,7 +9,6 @@ use Carbon\Carbon;
 class StateHandler
 {
     protected TelegramBotService $bot;
-    protected TaskHandler $taskHandler;
     protected FinanceHandler $financeHandler;
     protected DebtHandler $debtHandler;
     protected CalendarHandler $calendarHandler;
@@ -17,14 +16,12 @@ class StateHandler
 
     public function __construct(
         TelegramBotService $bot,
-        TaskHandler $taskHandler,
         FinanceHandler $financeHandler,
         DebtHandler $debtHandler,
         CalendarHandler $calendarHandler,
         SettingsHandler $settingsHandler
     ) {
         $this->bot = $bot;
-        $this->taskHandler = $taskHandler;
         $this->financeHandler = $financeHandler;
         $this->debtHandler = $debtHandler;
         $this->calendarHandler = $calendarHandler;
@@ -37,8 +34,6 @@ class StateHandler
         $data = $user->state_data ?? [];
 
         match ($state) {
-            'adding_task' => $this->handleTaskState($user, $text, $data),
-            'editing_task' => $this->handleEditTaskState($user, $text, $data),
             'adding_transaction' => $this->handleTransactionState($user, $text, $data),
             'adding_debt' => $this->handleDebtState($user, $text, $data),
             'partial_payment' => $this->handlePartialPayment($user, $text, $data),
@@ -77,66 +72,10 @@ class StateHandler
 
         // Handle based on current state
         match ($state) {
-            'adding_task' => $this->taskHandler->confirmTask($user, 'confirm', $messageId),
             'adding_transaction' => $this->financeHandler->confirmTransaction($user, 'confirm', $messageId),
             'adding_debt' => $this->debtHandler->confirmDebt($user, 'confirm', $messageId),
             default => $this->clearAndNotify($user),
         };
-    }
-
-    protected function handleTaskState(TelegramUser $user, string $text, array $data): void
-    {
-        // Tezkor vazifa qo'shish - kategoriya avtomatik aniqlanadi
-        $this->taskHandler->quickAddTask($user, $text);
-    }
-
-    protected function handleEditTaskState(TelegramUser $user, string $text, array $data): void
-    {
-        $taskId = $data['task_id'] ?? null;
-        $field = $data['field'] ?? null;
-
-        if (!$taskId || !$field) {
-            $this->clearAndNotify($user);
-            return;
-        }
-
-        $task = $user->tasks()->find($taskId);
-        if (!$task) {
-            $user->clearState();
-            $this->bot->sendMessage($user->telegram_id, "❌ Vazifa topilmadi.");
-            return;
-        }
-
-        switch ($field) {
-            case 'title':
-                $task->title = $text;
-                break;
-            case 'description':
-                $task->description = $text;
-                break;
-            case 'date':
-                try {
-                    $task->date = Carbon::parse($text);
-                } catch (\Exception $e) {
-                    $this->bot->sendMessage($user->telegram_id, "❌ Noto'g'ri sana formati.");
-                    return;
-                }
-                break;
-            case 'time':
-                if (preg_match('/^(\d{1,2}):(\d{2})$/', $text, $matches)) {
-                    $task->time = sprintf('%02d:%02d:00', $matches[1], $matches[2]);
-                } else {
-                    $this->bot->sendMessage($user->telegram_id, "❌ Noto'g'ri vaqt formati.");
-                    return;
-                }
-                break;
-        }
-
-        $task->save();
-        $user->clearState();
-
-        $this->bot->sendMessage($user->telegram_id, "✅ Vazifa yangilandi!");
-        $this->taskHandler->viewTask($user, $taskId, null);
     }
 
     protected function handleTransactionState(TelegramUser $user, string $text, array $data): void
@@ -412,33 +351,6 @@ class StateHandler
     {
         // Delegate to AIHandler
         app(AIHandler::class)->processChat($user, $text);
-    }
-
-    protected function showTaskConfirmation(TelegramUser $user, array $data): void
-    {
-        $message = "📝 <b>Vazifani tasdiqlang</b>\n\n";
-        $message .= "📌 Nom: {$data['title']}\n";
-        
-        if (!empty($data['description'])) {
-            $message .= "📝 Tavsif: {$data['description']}\n";
-        }
-        
-        $priorities = ['high' => 'Yuqori', 'medium' => 'O\'rta', 'low' => 'Past'];
-        $message .= "🎯 Muhimlik: " . ($priorities[$data['priority'] ?? 'medium'] ?? 'O\'rta') . "\n";
-        
-        $categories = config('telegram.task_categories');
-        $message .= "📁 Kategoriya: " . ($categories[$data['category'] ?? 'other'] ?? 'Boshqa') . "\n";
-        
-        if (!empty($data['tags'])) {
-            $message .= "🏷️ Teglar: " . implode(' ', array_map(fn($t) => "#{$t}", $data['tags'])) . "\n";
-        }
-
-        if (!empty($data['time'])) {
-            $message .= "⏰ Vaqt: " . substr($data['time'], 0, 5) . "\n";
-        }
-
-        $keyboard = $this->bot->buildConfirmKeyboard('task_confirm');
-        $this->bot->sendMessageWithInlineKeyboard($user->telegram_id, $message, $keyboard);
     }
 
     protected function showTransactionConfirmation(TelegramUser $user, array $data): void

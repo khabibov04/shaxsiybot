@@ -74,3 +74,4 @@ class UpdateCurrencyRates extends Command
     }
 }
 
+

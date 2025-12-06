@@ -50,3 +50,4 @@ class CurrencyRate extends Model
     }
 }
 
+

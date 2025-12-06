@@ -220,20 +220,9 @@ class TelegramBotService
     public function buildMainMenuKeyboard(): array
     {
         return [
-            [['text' => '📋 Vazifalar'], ['text' => '💰 Moliya']],
-            [['text' => '📅 Taqvim'], ['text' => '💳 Qarzlar']],
-            [['text' => '📊 Statistika'], ['text' => '🤖 AI Yordamchi']],
-            [['text' => '⚙️ Sozlamalar']],
-        ];
-    }
-
-    public function buildTasksKeyboard(): array
-    {
-        return [
-            [['text' => '➕ Vazifa qo\'shish'], ['text' => '📋 Bugungi vazifalar']],
-            [['text' => '📅 Haftalik'], ['text' => '📆 Oylik']],
-            [['text' => '🌅 Ertalabki reja'], ['text' => '🌙 Kechki xulosa']],
-            [['text' => '🔙 Orqaga']],
+            [['text' => '💰 Moliya'], ['text' => '💳 Qarzlar']],
+            [['text' => '📅 Taqvim'], ['text' => '📊 Statistika']],
+            [['text' => '🤖 AI Yordamchi'], ['text' => '⚙️ Sozlamalar']],
         ];
     }
 

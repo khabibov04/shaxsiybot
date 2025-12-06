@@ -38,3 +38,4 @@ class ChatHistory extends Model
     }
 }
 
+
